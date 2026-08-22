@@ -178,7 +178,12 @@ try {
   if (-not (Test-Path -LiteralPath (Join-Path $flutterRelease $executableName))) {
     throw "Flutter release output is missing: $flutterRelease"
   }
-  Copy-Item -Path (Join-Path $flutterRelease '*') -Destination $releaseRoot -Recurse -Force
+  # Flutter出力を実行して作られた利用者データは残したまま、配布対象から明示的に除外します。
+  Get-ChildItem -LiteralPath $flutterRelease -Force |
+    Where-Object { $_.Name -ne 'DAMforWindowsToolsData' } |
+    ForEach-Object {
+      Copy-Item -LiteralPath $_.FullName -Destination $releaseRoot -Recurse -Force
+    }
 
   $microsoftRuntimeDestinations = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
   foreach ($runtimeFile in $msvcRuntime.Files) {
