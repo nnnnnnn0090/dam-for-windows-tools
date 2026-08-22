@@ -8,6 +8,7 @@
 import 'package:dam_for_windows_tools/presentation/widgets/qr_encoder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// QR行列の再現性、正方形構造、ファインダーパターンを検証します。
 void main() {
   test('creates a square deterministic QR matrix with finder patterns', () {
     final first = generateQrMatrix('http://192.168.1.10:8766/token/');

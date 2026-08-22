@@ -7,10 +7,12 @@
 
 import '../../domain/tracks.dart';
 
+/// 動画IDごとの配信段階と診断用詳細をアプリへ通知する関数型です。
 typedef PlaybackStageHandler = void Function(
   String videoId,
   PlaybackStage stage,
   String detail,
 );
 
+/// 配信サービスの診断メッセージをGUIへ渡す関数型です。
 typedef DiagnosticLogHandler = void Function(String message);

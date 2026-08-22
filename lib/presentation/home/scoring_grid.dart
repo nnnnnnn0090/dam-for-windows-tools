@@ -9,7 +9,9 @@ import 'package:flutter/material.dart';
 
 import '../../domain/scoring.dart';
 
+/// 全採点技法を、ウィンドウ幅に合わせた固定高さタイルで表示します。
 class ScoringGrid extends StatelessWidget {
+  /// 技法別回数と、直近検出を強調する技法IDを受け取ります。
   const ScoringGrid({
     super.key,
     required this.counts,
@@ -19,6 +21,7 @@ class ScoringGrid extends StatelessWidget {
   final List<MapEntry<int, int>> counts;
   final int? latestTechniqueId;
 
+  /// タイル幅だけを可変にし、アイコン・名称・回数の位置を揃えたグリッドを構築します。
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
@@ -43,7 +46,9 @@ class ScoringGrid extends StatelessWidget {
   }
 }
 
+/// 1つの歌唱技法を、アイコン・名称・回数で即読できるタイルです。
 class _ScoringTile extends StatelessWidget {
+  /// 技法ID、現在回数、直近検出かどうかを受け取ります。
   const _ScoringTile({
     required this.techniqueId,
     required this.count,
@@ -54,6 +59,7 @@ class _ScoringTile extends StatelessWidget {
   final int count;
   final bool latest;
 
+  /// 0回は薄く、検出済みと直近イベントは段階的に強調して表示します。
   @override
   Widget build(BuildContext context) {
     final name = scoringTechniqueName(techniqueId);

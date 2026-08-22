@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 
+// 全フラグメントを本番と同じ順序で結合し、Nodeの構文解析だけを実行します。
+
 import fs from 'node:fs';
 
 import { agentFragmentNames, composeAgentSource } from './agent_source.js';

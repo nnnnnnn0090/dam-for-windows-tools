@@ -15,11 +15,14 @@ import '../widgets/panel.dart';
 import '../widgets/setting_checkbox.dart';
 import 'scoring_grid.dart';
 
+/// 現在曲の採点表示設定と、全技法の検出回数を常時表示します。
 class ScoringPage extends StatelessWidget {
+  /// 設定と採点セッションを提供するコントローラーを受け取ります。
   const ScoringPage({super.key, required this.controller});
 
   final AppController controller;
 
+  /// 未検出技法も0回で並べ、歌唱中に視線移動が少ない固定グリッドを構築します。
   @override
   Widget build(BuildContext context) {
     final settings = controller.settings;

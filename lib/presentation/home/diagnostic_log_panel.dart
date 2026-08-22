@@ -11,18 +11,23 @@ import 'package:flutter/services.dart';
 import '../../application/app_controller.dart';
 import '../widgets/panel.dart';
 
+/// 通常時は導線だけを表示し、必要時に診断ログを展開するパネルです。
 class DiagnosticLogPanel extends StatefulWidget {
+  /// 表示対象ログを持つコントローラーを受け取ります。
   const DiagnosticLogPanel({super.key, required this.controller});
 
   final AppController controller;
 
+  /// 展開状態を保持する状態を生成します。
   @override
   State<DiagnosticLogPanel> createState() => _DiagnosticLogPanelState();
 }
 
+/// 診断ログの開閉とクリップボードコピーを管理します。
 class _DiagnosticLogPanelState extends State<DiagnosticLogPanel> {
   bool _expanded = false;
 
+  /// 直近120行だけを画面表示・コピー対象として構築します。
   @override
   Widget build(BuildContext context) {
     final logs = widget.controller.logs;

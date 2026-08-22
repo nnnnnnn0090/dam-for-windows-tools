@@ -13,12 +13,15 @@ import 'qr_encoder.dart';
 
 export 'qr_encoder.dart' show generateQrMatrix;
 
+/// 外部パッケージへ依存せず、文字列を読み取り可能なQRコードとして表示します。
 class QrCodeView extends StatelessWidget {
+  /// 符号化する文字列と、描画する正方形サイズを受け取ります。
   const QrCodeView({super.key, required this.data, required this.size});
 
   final String data;
   final double size;
 
+  /// QR行列を生成し、失敗時は空白ではなく明示的なエラー表示へ切り替えます。
   @override
   Widget build(BuildContext context) {
     try {
@@ -46,11 +49,14 @@ class QrCodeView extends StatelessWidget {
   }
 }
 
+/// QR行列へ読取余白を加え、黒白セルとして描画します。
 class _QrPainter extends CustomPainter {
+  /// 符号化済みの黒白モジュール行列を受け取ります。
   const _QrPainter(this.modules);
 
   final List<List<bool>> modules;
 
+  /// 4セル分の余白を確保し、アンチエイリアスなしで各黒セルを描画します。
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
@@ -78,6 +84,7 @@ class _QrPainter extends CustomPainter {
     }
   }
 
+  /// QR行列の参照が変わった場合だけ再描画します。
   @override
   bool shouldRepaint(covariant _QrPainter oldDelegate) =>
       oldDelegate.modules != modules;

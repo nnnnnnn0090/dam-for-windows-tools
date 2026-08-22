@@ -10,6 +10,7 @@ import test from 'node:test';
 
 import { normalizeConfig } from '../helper_config.js';
 
+// 欠損設定が安全な有効初期値へ正規化されることを検証します。
 test('normalizes helper configuration to secure enabled defaults', () => {
   assert.deepEqual(normalizeConfig(null), {
     disableModuleCheck: true,

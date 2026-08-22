@@ -12,7 +12,12 @@ import 'package:path/path.dart' as p;
 
 import '../config/app_config.dart';
 
+/// 配布物、永続データ、今回だけの一時データの配置を一元管理します。
+///
+/// 削除対象をセッション配下へ限定するため、パスの組み立てと安全性検証を
+/// 個々のサービスへ分散させません。
 class AppPaths {
+  /// 検証済みの各ディレクトリと同梱実行ファイルからパス集合を生成します。
   AppPaths._({
     required this.supportDirectory,
     required this.sessionParent,
@@ -31,6 +36,7 @@ class AppPaths {
   final String nodeExecutable;
   final String ffmpegExecutable;
 
+  /// テスト用ルートの外へ書き込まない、固定パス構成を生成します。
   factory AppPaths.forTesting({
     required Directory root,
     String nodeExecutable = 'node',
@@ -51,12 +57,23 @@ class AppPaths {
     );
   }
 
+  /// EXE横のデータフォルダに置く設定ファイルを返します。
   File get settingsFile => File(p.join(supportDirectory.path, 'settings.json'));
+
+  /// URLや時刻を含まない曲履歴ファイルを返します。
   File get historyFile => File(p.join(supportDirectory.path, 'history.json'));
+
+  /// 利用者が取り込んだ差し替え動画の永続ディレクトリを返します。
   Directory get manualVideosDirectory =>
       Directory(p.join(supportDirectory.path, 'videos'));
+
+  /// 今回の起動で生成したHLSだけを置く一時ディレクトリを返します。
   Directory get hlsDirectory => Directory(p.join(sessionDirectory.path, 'hls'));
 
+  /// 実行位置を解決し、前回残骸を清掃して今回専用のセッションを作成します。
+  ///
+  /// 配布版では同梱Node/FFmpegを優先し、開発時だけPATH上の実行ファイルへ
+  /// 退避できるようにしています。
   static Future<AppPaths> create({Directory? applicationDirectory}) async {
     final executableDirectory = File(Platform.resolvedExecutable).parent;
     final cwd = Directory.current;
@@ -111,6 +128,7 @@ class AppPaths {
     );
   }
 
+  /// 配布版とソース実行の両方で、runtimeが存在する実際のアプリルートを選びます。
   static Directory _resolveApplicationDirectory(
     Directory executableDirectory,
     Directory cwd,
@@ -125,6 +143,7 @@ class AppPaths {
     return executableDirectory;
   }
 
+  /// 正規化したセッションパスが管理領域内にあることを確認してから削除します。
   Future<void> disposeSession() async {
     final parentPath = p.normalize(p.absolute(sessionParent.path));
     final sessionPath = p.normalize(p.absolute(sessionDirectory.path));
@@ -136,6 +155,7 @@ class AppPaths {
     }
   }
 
+  /// 異常終了で残った過去セッションだけを、リンクを追わずに削除します。
   static Future<void> _cleanupStaleSessions(Directory parent) async {
     final parentPath = p.normalize(p.absolute(parent.path));
     await for (final entity in parent.list(followLinks: false)) {
@@ -148,13 +168,14 @@ class AppPaths {
         try {
           await entity.delete(recursive: true);
         } on FileSystemException {
-          // A prior helper may still be releasing a file. The current session
-          // uses a unique directory, so leaving this stale directory is safe.
+          // 前回のヘルパーがファイルを解放中でも、今回のセッションは別名なので
+          // 安全に続行できます。削除できない残骸は次回起動時に再試行します。
         }
       }
     }
   }
 
+  /// 推測困難なセッション名を作るため、暗号学的乱数を16進文字列へ変換します。
   static String _randomToken(int bytes) {
     final random = Random.secure();
     return List<int>.generate(

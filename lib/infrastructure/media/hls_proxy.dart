@@ -15,7 +15,9 @@ import 'http_response_writer.dart';
 import 'media_events.dart';
 import 'media_job.dart';
 
+/// 公式HLSを保存せずに中継し、high失敗時はlowへ退避します。
 class HlsProxy {
+  /// セッショントークンを持つ書換器と、上流HTTPクライアントを生成します。
   HlsProxy({
     required String sessionToken,
     required this.onStage,
@@ -32,6 +34,9 @@ class HlsProxy {
     ..idleTimeout = const Duration(seconds: 30)
     ..autoUncompress = true;
 
+  /// 品質順に公式マニフェストを取得し、全URIをローカル中継経路へ変換します。
+  ///
+  /// 応答サイズを制限し、どの候補も使えない場合だけ502を返します。
   Future<void> serveManifest(
     HttpRequest request,
     MediaJob job, {
@@ -81,6 +86,9 @@ class HlsProxy {
     );
   }
 
+  /// マニフェストで登録済みの資産だけを取得し、Rangeと内容種別を維持して返します。
+  ///
+  /// 資産自体が子マニフェストなら再度URIを書き換え、上流URLの直接露出を防ぎます。
   Future<void> serveAsset(
     HttpRequest request,
     MediaJob job,
@@ -153,8 +161,10 @@ class HlsProxy {
     await response.pipe(request.response);
   }
 
+  /// 保持中の上流HTTP接続を強制終了します。
   void close() => _client.close(force: true);
 
+  /// ストリームを指定上限まで読み込み、巨大マニフェストは途中で拒否します。
   Future<List<int>> _readLimited(HttpClientResponse response, int limit) async {
     final builder = BytesBuilder(copy: false);
     var length = 0;

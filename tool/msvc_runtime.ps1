@@ -5,8 +5,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Created: 2026-08-22
 
+# 正規Visual Studioから署名済みVC++ランタイムを選び、配布物の依存関係を閉じます。
+
 Set-StrictMode -Version Latest
 
+<# ファイルのAuthenticode署名が有効で、Microsoft Corporation発行か確認します。 #>
 function Assert-MicrosoftSignedFile {
   param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -18,6 +21,10 @@ function Assert-MicrosoftSignedFile {
   }
 }
 
+<#
+必要DLLをすべて含む最新のx64 App-local VC++ランタイム一式を探します。
+各DLLの署名と同一14.x版を確認し、混在したランタイムは採用しません。
+#>
 function Find-VisualCppAppLocalRuntime {
   param([Parameter(Mandatory = $true)][string[]]$RequiredFiles)
 
@@ -101,6 +108,7 @@ function Find-VisualCppAppLocalRuntime {
   throw "No signed x64 Visual C++ runtime containing $($RequiredFiles -join ', ') was found"
 }
 
+<# 指定Visual Studio配下から、x64バイナリを調査できるdumpbin.exeを探します。 #>
 function Find-DumpBin {
   param([Parameter(Mandatory = $true)][string]$VisualStudioPath)
 
@@ -112,6 +120,7 @@ function Find-DumpBin {
   return $candidates[0].FullName
 }
 
+<# 配布物内のEXE・DLL・NODEが要求するVC++ DLLをすべて同梱しているか検証します。 #>
 function Assert-VisualCppDependencyClosure {
   param(
     [Parameter(Mandatory = $true)][string]$ReleaseRoot,

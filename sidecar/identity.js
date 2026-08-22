@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-22
 
+/** 公式HLS URLのファイル名から「6184-92」形式の公開動画IDだけを抽出します。 */
 export function extractVideoAssetId(value) {
   const text = String(value == null ? '' : value).trim();
   if (!/^https?:\/\//i.test(text)) return '';

@@ -13,6 +13,9 @@ import 'config/app_license_registry.dart';
 import 'infrastructure/windows_single_instance.dart';
 import 'presentation/app.dart';
 
+/// ライセンスを登録し、単一起動を確認してからFlutter GUIを開始します。
+///
+/// 二重起動時は新しいプロセスを残さず、既存ウィンドウだけを前面へ戻します。
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   AppLicenseRegistry.register();

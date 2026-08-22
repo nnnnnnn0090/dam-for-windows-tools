@@ -14,6 +14,7 @@
 
 #include <iostream>
 
+/// コンソールを割り当て、C/C++とFlutterエンジンの出力先を再同期します。
 void CreateAndAttachConsole() {
   if (::AllocConsole()) {
     FILE *unused;
@@ -28,8 +29,9 @@ void CreateAndAttachConsole() {
   }
 }
 
+/// WindowsのUTF-16コマンドラインを解析し、引数部分だけUTF-8へ変換します。
 std::vector<std::string> GetCommandLineArguments() {
-  // Convert the UTF-16 command line arguments to UTF-8 for the Engine to use.
+  // Flutterエンジンへ渡せるよう、WindowsのUTF-16引数をUTF-8へ変換します。
   int argc;
   wchar_t** argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
   if (argv == nullptr) {
@@ -38,7 +40,7 @@ std::vector<std::string> GetCommandLineArguments() {
 
   std::vector<std::string> command_line_arguments;
 
-  // Skip the first argument as it's the binary name.
+  // 先頭は実行ファイル名なのでDartエントリポイントへは渡しません。
   for (int i = 1; i < argc; i++) {
     command_line_arguments.push_back(Utf8FromUtf16(argv[i]));
   }
@@ -48,16 +50,15 @@ std::vector<std::string> GetCommandLineArguments() {
   return command_line_arguments;
 }
 
+/// 最大UNICODE_STRING長を上限として、UTF-16文字列を厳密なUTF-8へ変換します。
 std::string Utf8FromUtf16(const wchar_t* utf16_string) {
   if (utf16_string == nullptr) {
     return std::string();
   }
-  // First, find the length of the string with a safe upper bound (CWE-126).
-  // UNICODE_STRING_MAX_CHARS (32767) is the maximum length of a UNICODE_STRING.
+  // CWE-126を避けるため、UNICODE_STRINGの最大32767文字を上限に長さを求めます。
   int input_length = static_cast<int>(wcsnlen(utf16_string, UNICODE_STRING_MAX_CHARS));
-  // Now use that bounded length to determine the required buffer size.
-  // When an explicit length is passed, WideCharToMultiByte does not include
-  // the null terminator in its returned size.
+  // 上限付き長さから必要バッファを計算します。明示長指定時の戻り値には
+  // NULL終端が含まれないため、その値と同じ長さだけ確保します。
   int target_length = ::WideCharToMultiByte(
       CP_UTF8, WC_ERR_INVALID_CHARS, utf16_string,
       input_length, nullptr, 0, nullptr, nullptr);

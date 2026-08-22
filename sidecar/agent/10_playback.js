@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 
+/** ネイティブポインターから上限付きUTF-8を読み、失敗時は空文字列を返します。 */
 function safeUtf8(pointer, maximum = 8192) {
   if (!pointer || pointer.isNull()) return '';
   try {
@@ -20,6 +21,7 @@ function safeUtf8(pointer, maximum = 8192) {
   }
 }
 
+/** ネイティブポインターから上限付きUTF-16を読み、失敗時は空文字列を返します。 */
 function safeUtf16(pointer, maximum = 8192) {
   if (!pointer || pointer.isNull()) return '';
   try {
@@ -35,6 +37,7 @@ function safeUtf16(pointer, maximum = 8192) {
   }
 }
 
+/** 外部値を「6184-92」形式の公開動画IDだけに制限します。 */
 function cleanId(value) {
   const text = String(value == null ? '' : value).trim();
   return text.length <= 128 && /^[0-9A-Za-z]+-[0-9A-Za-z_-]+$/.test(text)
@@ -42,6 +45,7 @@ function cleanId(value) {
     : '';
 }
 
+/** 表示文字列から制御文字と連続空白を除き、300文字以内だけを返します。 */
 function cleanText(value) {
   if (typeof value !== 'string') return '';
   const cleaned = value
@@ -51,6 +55,7 @@ function cleanText(value) {
   return cleaned.length <= 300 ? cleaned : '';
 }
 
+/** C文字列を例外なく読み、指定上限までに切り詰めます。 */
 function safeCString(pointer, maximum) {
   if (!pointer || pointer.isNull()) return '';
   try {
@@ -61,21 +66,25 @@ function safeCString(pointer, maximum) {
   }
 }
 
+/** Flutterとの要求相関IDを許可文字と長さで検証します。 */
 function cleanCorrelationId(value) {
   const text = String(value == null ? '' : value);
   return /^[0-9A-Za-z_-]{8,128}$/.test(text) ? text : '';
 }
 
+/** DAM内部バッファ容量を超えない、制御文字なしの検索語だけを返します。 */
 function cleanSearchQuery(value, capacity) {
   if (typeof value !== 'string') return '';
   const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
   return cleaned.length > 0 && cleaned.length < capacity ? cleaned : '';
 }
 
+/** ローカル二重処理を除外し、長さ制限内のHTTP(S)上流URLか判定します。 */
 function validRemoteUrl(value) {
   return /^https?:\/\//i.test(value) && !LOCAL_SERVER.test(value) && value.length <= 8192;
 }
 
+/** 個別値を検証し、再生通知に使う安全な動画記述へまとめます。 */
 function descriptorFrom(values) {
   return {
     videoId: cleanId(values.videoId),
@@ -84,6 +93,7 @@ function descriptorFrom(values) {
   };
 }
 
+/** highとlowのURLから公開動画IDを確定し、動画記述を生成します。 */
 function resolveDescriptor(highUrl, lowUrl) {
   return descriptorFrom({
     videoId: extractVideoAssetId(highUrl) || extractVideoAssetId(lowUrl),
@@ -92,6 +102,7 @@ function resolveDescriptor(highUrl, lowUrl) {
   });
 }
 
+/** 現在再生中のDAMメモリから、確定動画IDに対応する曲情報だけを通知します。 */
 function emitCurrentPlaybackMetadata(descriptor) {
   const metadata = DAM_TARGET_MANIFEST.hooks.currentPlaybackMetadata;
   try {
@@ -106,6 +117,6 @@ function emitCurrentPlaybackMetadata(descriptor) {
       candidates: [{ ids: [descriptor.videoId], artist, title }],
     });
   } catch (_) {
-    // Playback must continue unchanged when read-only metadata is unavailable.
+    // 読み取り専用の曲情報を取得できなくても、DAMの再生経路には影響させません。
   }
 }

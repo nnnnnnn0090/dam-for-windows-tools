@@ -14,38 +14,34 @@
 
 namespace {
 
-/// Window attribute that enables dark mode window decorations.
+/// ウィンドウ装飾のダークモードを有効にする属性です。
 ///
-/// Redefined in case the developer's machine has a Windows SDK older than
-/// version 10.0.22000.0.
-/// See: https://docs.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
+/// 開発環境のWindows SDKが10.0.22000.0未満でもビルドできるよう再定義します。
+/// 参照: https://docs.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
-/// Registry key for app theme preference.
+/// アプリの明暗テーマ設定を読むレジストリキーです。
 ///
-/// A value of 0 indicates apps should use dark mode. A non-zero or missing
-/// value indicates apps should use light mode.
+/// 0はダークモード、0以外または未設定はライトモードを表します。
 constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
   L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme";
 
-// The number of Win32Window objects that currently exist.
+// 現在生存しているWin32Windowインスタンス数です。
 static int g_active_window_count = 0;
 
 using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
 
-// Scale helper to convert logical scaler values to physical using passed in
-// scale factor
+/// 論理ピクセル値を指定DPI倍率の物理ピクセルへ変換します。
 int Scale(int source, double scale_factor) {
   return static_cast<int>(source * scale_factor);
 }
 
-// Dynamically loads the |EnableNonClientDpiScaling| from the User32 module.
-// This API is only needed for PerMonitor V1 awareness mode.
+/// PerMonitor V1環境だけに必要な非クライアント領域DPI APIを動的に呼び出します。
 void EnableFullDpiSupportIfAvailable(HWND hwnd) {
   HMODULE user32_module = LoadLibraryA("User32.dll");
   if (!user32_module) {
@@ -60,14 +56,15 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
   FreeLibrary(user32_module);
 }
 
-}  // namespace
+}  // 無名名前空間の終端
 
-// Manages the Win32Window's window class registration.
+/// Win32ウィンドウクラスをプロセス内で1回だけ登録・解除します。
 class WindowClassRegistrar {
  public:
+  /// 追加資源を持たない登録器を破棄します。
   ~WindowClassRegistrar() = default;
 
-  // Returns the singleton registrar instance.
+  /// プロセス内で共有する唯一の登録器を返します。
   static WindowClassRegistrar* GetInstance() {
     if (!instance_) {
       instance_ = new WindowClassRegistrar();
@@ -75,15 +72,14 @@ class WindowClassRegistrar {
     return instance_;
   }
 
-  // Returns the name of the window class, registering the class if it hasn't
-  // previously been registered.
+  /// 未登録ならアイコンとWndProcを登録し、ウィンドウクラス名を返します。
   const wchar_t* GetWindowClass();
 
-  // Unregisters the window class. Should only be called if there are no
-  // instances of the window.
+  /// 最後のウィンドウ破棄後に、登録済みウィンドウクラスを解除します。
   void UnregisterWindowClass();
 
  private:
+  /// シングルトン取得以外から生成できない登録器を初期化します。
   WindowClassRegistrar() = default;
 
   static WindowClassRegistrar* instance_;
@@ -93,6 +89,7 @@ class WindowClassRegistrar {
 
 WindowClassRegistrar* WindowClassRegistrar::instance_ = nullptr;
 
+/// 必要に応じてWin32ウィンドウクラスを登録し、その名前を返します。
 const wchar_t* WindowClassRegistrar::GetWindowClass() {
   if (!class_registered_) {
     WNDCLASS window_class{};
@@ -113,20 +110,24 @@ const wchar_t* WindowClassRegistrar::GetWindowClass() {
   return kWindowClassName;
 }
 
+/// 登録済みウィンドウクラスをOSから解除します。
 void WindowClassRegistrar::UnregisterWindowClass() {
   UnregisterClass(kWindowClassName, nullptr);
   class_registered_ = false;
 }
 
+/// 未作成ウィンドウを生成し、生存インスタンス数を増やします。
 Win32Window::Win32Window() {
   ++g_active_window_count;
 }
 
+/// 生存インスタンス数を減らし、残っているOS資源を破棄します。
 Win32Window::~Win32Window() {
   --g_active_window_count;
   Destroy();
 }
 
+/// 既定モニターのDPIへ拡大したトップレベルウィンドウを作成します。
 bool Win32Window::Create(const std::wstring& title,
                          const Point& origin,
                          const Size& size) {
@@ -156,11 +157,12 @@ bool Win32Window::Create(const std::wstring& title,
   return OnCreate();
 }
 
+/// 作成済みトップレベルウィンドウを通常状態で表示します。
 bool Win32Window::Show() {
   return ShowWindow(window_handle_, SW_SHOWNORMAL);
 }
 
-// static
+/// WM_NCCREATEでインスタンスを関連付け、以後のメッセージをメンバーへ転送します。
 LRESULT CALLBACK Win32Window::WndProc(HWND const window,
                                       UINT const message,
                                       WPARAM const wparam,
@@ -180,6 +182,7 @@ LRESULT CALLBACK Win32Window::WndProc(HWND const window,
   return DefWindowProc(window, message, wparam, lparam);
 }
 
+/// サイズ・DPI・フォーカス・テーマ変更を処理し、未処理メッセージをOSへ返します。
 LRESULT
 Win32Window::MessageHandler(HWND hwnd,
                             UINT const message,
@@ -207,7 +210,7 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_SIZE: {
       RECT rect = GetClientArea();
       if (child_content_ != nullptr) {
-        // Size and position the child window.
+        // Flutter子ウィンドウを新しいクライアント領域へ合わせます。
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
       }
@@ -228,6 +231,7 @@ Win32Window::MessageHandler(HWND hwnd,
   return DefWindowProc(window_handle_, message, wparam, lparam);
 }
 
+/// 派生解放処理とHWND破棄を行い、最後の1件ならウィンドウクラスも解除します。
 void Win32Window::Destroy() {
   OnDestroy();
 
@@ -240,11 +244,13 @@ void Win32Window::Destroy() {
   }
 }
 
+/// HWNDのユーザーデータから対応するWin32Windowを取得します。
 Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
   return reinterpret_cast<Win32Window*>(
       GetWindowLongPtr(window, GWLP_USERDATA));
 }
 
+/// FlutterビューのHWNDを子として設定し、現在領域へ合わせてフォーカスします。
 void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
@@ -256,29 +262,35 @@ void Win32Window::SetChildContent(HWND content) {
   SetFocus(child_content_);
 }
 
+/// トップレベルウィンドウの現在クライアント領域を返します。
 RECT Win32Window::GetClientArea() {
   RECT frame;
   GetClientRect(window_handle_, &frame);
   return frame;
 }
 
+/// トップレベルウィンドウのHWNDを返します。
 HWND Win32Window::GetHandle() {
   return window_handle_;
 }
 
+/// WM_DESTROY時にメッセージループを終了するか設定します。
 void Win32Window::SetQuitOnClose(bool quit_on_close) {
   quit_on_close_ = quit_on_close;
 }
 
+/// 派生クラスが上書きしない場合の、成功する初期化処理です。
 bool Win32Window::OnCreate() {
-  // No-op; provided for subclasses.
+  // 派生クラス向けの既定実装なので追加処理はありません。
   return true;
 }
 
+/// 派生クラスが上書きしない場合の、何もしない解放処理です。
 void Win32Window::OnDestroy() {
-  // No-op; provided for subclasses.
+  // 派生クラス向けの既定実装なので追加処理はありません。
 }
 
+/// ユーザーのAppsUseLightTheme設定を読み、DWMのウィンドウ枠へ反映します。
 void Win32Window::UpdateTheme(HWND const window) {
   DWORD light_mode;
   DWORD light_mode_size = sizeof(light_mode);

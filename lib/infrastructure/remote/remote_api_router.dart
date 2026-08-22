@@ -11,7 +11,9 @@ import '../../domain/remote.dart';
 import 'remote_handlers.dart';
 import 'remote_http.dart';
 
+/// Web APIの入力をドメイン型へ変換し、許可済みハンドラーだけを呼び出します。
 class RemoteApiRouter {
+  /// アプリ実行サービスへ接続済みの操作ハンドラーを受け取ります。
   const RemoteApiRouter(this.handlers);
 
   static const Set<String> endpoints = <String>{
@@ -28,6 +30,7 @@ class RemoteApiRouter {
 
   final RemoteHandlers handlers;
 
+  /// 許可済みエンドポイント名を対応処理へ振り分けます。
   Future<void> handle(
     String endpoint,
     Map<String, dynamic> body,
@@ -57,6 +60,7 @@ class RemoteApiRouter {
     }
   }
 
+  /// 検索語と検索種別を検証し、曲・歌手結果をJSONで返します。
   Future<void> _search(Map<String, dynamic> body, HttpResponse response) async {
     final query = body['query'];
     if (query is! String) {
@@ -77,6 +81,7 @@ class RemoteApiRouter {
     });
   }
 
+  /// 検索結果トークンから曲詳細を取得してJSONで返します。
   Future<void> _detail(Map<String, dynamic> body, HttpResponse response) async {
     final token = body['token'];
     if (token is! String) {
@@ -87,6 +92,7 @@ class RemoteApiRouter {
     });
   }
 
+  /// 予約方法、キー、採点、演奏タイプを検証してDAMへ予約します。
   Future<void> _reserve(
     Map<String, dynamic> body,
     HttpResponse response,
@@ -135,6 +141,7 @@ class RemoteApiRouter {
     });
   }
 
+  /// お気に入りの登録または解除を実行し、確定状態を返します。
   Future<void> _favorite(
     Map<String, dynamic> body,
     HttpResponse response,
@@ -152,6 +159,7 @@ class RemoteApiRouter {
     });
   }
 
+  /// 許可リストで再検証される演奏操作をSidecarへ渡します。
   Future<void> _control(
     Map<String, dynamic> body,
     HttpResponse response,
@@ -166,6 +174,7 @@ class RemoteApiRouter {
     );
   }
 
+  /// 現在の予約一覧をブラウザ表示用JSONへ変換します。
   Future<void> _queue(HttpResponse response) async {
     final rows = await handlers.readQueue();
     await RemoteHttp.json(response, <String, Object>{
@@ -173,6 +182,7 @@ class RemoteApiRouter {
     });
   }
 
+  /// 予約操作名と行トークンを検証して、更新後の一覧を返します。
   Future<void> _queueAction(
     Map<String, dynamic> body,
     HttpResponse response,
@@ -188,6 +198,7 @@ class RemoteApiRouter {
     });
   }
 
+  /// DAM本体が返す再生履歴を取得し、予約可能な曲一覧として返します。
   Future<void> _history(HttpResponse response) async {
     final rows = await handlers.readHistory();
     await RemoteHttp.json(response, <String, Object>{

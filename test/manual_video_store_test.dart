@@ -12,6 +12,7 @@ import 'package:dam_for_windows_tools/infrastructure/manual_video_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
+/// 差し替え動画の取り込み・変更・削除・別PC相当の復元を検証します。
 void main() {
   test('manual videos are copied into portable data storage', () async {
     final root = await Directory.systemTemp.createTemp('dam-tools-videos-');

@@ -7,7 +7,9 @@
 
 import 'package:flutter/material.dart';
 
+/// WindowsデスクトップGUIで共通使用する色・余白・部品形状を定義します。
 abstract final class AppTheme {
+  /// 長時間のカラオケ利用でも眩しさを抑えた、製品共通のダークテーマを返します。
   static ThemeData get dark => ThemeData(
     colorScheme: const ColorScheme.dark(
       primary: Color(0xff5b9bd5),

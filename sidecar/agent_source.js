@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-22
 
+/** ES Moduleのexport修飾子だけを除き、Fridaへ注入できる単一スクリプトへ変換します。 */
 function injectableModuleSource(source) {
   return String(source).replace(
     /^(\s*)export\s+(?=(?:async\s+)?function\s|class\s|(?:const|let|var)\s)/gm,
@@ -23,6 +24,7 @@ export const agentFragmentNames = Object.freeze([
   '70_rpc_exports.js',
 ]);
 
+/** マニフェスト、実行設定、ID抽出、順序固定フラグメントを1つのAgentソースへ結合します。 */
 export function composeAgentSource({
   manifest,
   runtimeConfig,

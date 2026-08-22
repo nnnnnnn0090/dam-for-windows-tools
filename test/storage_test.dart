@@ -14,6 +14,7 @@ import 'package:dam_for_windows_tools/infrastructure/history_repository.dart';
 import 'package:dam_for_windows_tools/infrastructure/settings_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// 履歴重複除去と、履歴消去が設定へ影響しないことを検証します。
 void main() {
   test('history storage de-duplicates IDs and clears only history', () async {
     final root = await Directory.systemTemp.createTemp('dam-tools-storage-');

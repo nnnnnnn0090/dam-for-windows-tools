@@ -10,6 +10,7 @@ import test from 'node:test';
 
 import { extractVideoAssetId } from '../identity.js';
 
+// 数値内部IDではなく公開動画IDだけをURLから抽出することを検証します。
 test('extracts the public video asset ID without using numeric DAM IDs', () => {
   assert.equal(
     extractVideoAssetId('https://example.invalid/hls/6184-92HD_1500.mp4.m3u8?token=x'),
@@ -21,6 +22,7 @@ test('extracts the public video asset ID without using numeric DAM IDs', () => {
   );
 });
 
+// HLS以外とHTTP(S)以外の入力を動画IDとして受け入れないことを検証します。
 test('rejects non-HLS and non-HTTP identities', () => {
   assert.equal(extractVideoAssetId('6184-92'), '');
   assert.equal(extractVideoAssetId('file:///6184-92.mp4.m3u8'), '');

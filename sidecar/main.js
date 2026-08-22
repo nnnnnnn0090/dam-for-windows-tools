@@ -22,6 +22,7 @@ const agentSession = new AgentSession({
 });
 
 let shuttingDown = false;
+/** 多重終了を防ぎ、パッチ復元とFrida切断を完了してからプロセスを終了します。 */
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;

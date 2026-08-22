@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 
+/** DAMホームのグローバル採点値を検証してBooleanとして読み取ります。 */
 function currentGlobalScoring() {
   const descriptor = DAM_TARGET_MANIFEST.hooks.globalScoring;
   const value = rva(descriptor.valueRva).readU32();
@@ -14,16 +15,17 @@ function currentGlobalScoring() {
   return value === descriptor.enabledValue;
 }
 
+/** DAM本体と同じ0/1値を書き、メインループ経由で採点設定を切り替えます。 */
 function setGlobalScoring(enabled) {
   const descriptor = DAM_TARGET_MANIFEST.hooks.globalScoring;
-  // The home handler at 0x1381CC writes this exact 0/1 value. DAM's main loop
-  // observes it and applies the same setting to the scoring controller.
+  // ホーム処理0x1381CCも同じ0/1値を書き、DAMのメインループが採点制御へ反映します。
   currentGlobalScoring();
   rva(descriptor.valueRva).writeU32(
     enabled ? descriptor.enabledValue : descriptor.disabledValue,
   );
 }
 
+/** DAMメモリを読み取り、リモコン表示に必要な演奏・曲・採点状態を構築します。 */
 function currentRemoteState() {
   const playback = DAM_TARGET_MANIFEST.hooks.remotePlaybackControl;
   const metadata = DAM_TARGET_MANIFEST.hooks.currentPlaybackMetadata;
@@ -70,6 +72,7 @@ function currentRemoteState() {
   };
 }
 
+/** DAM予約構造体1件を、推測操作できない行トークン付き表示値へ変換します。 */
 function readQueueRecord(address, cutIn, index) {
   const descriptor = DAM_TARGET_MANIFEST.hooks.remoteRequestQueue;
   const queueId = address.add(parseInteger(descriptor.queueIdOffset)).readU32();
@@ -91,6 +94,7 @@ function readQueueRecord(address, cutIn, index) {
   };
 }
 
+/** 割り込み1件と通常予約最大件数を読み取り、現在の予約一覧を返します。 */
 function currentRemoteQueue() {
   const descriptor = DAM_TARGET_MANIFEST.hooks.remoteRequestQueue;
   const rows = [];
@@ -115,11 +119,13 @@ function currentRemoteQueue() {
   return rows;
 }
 
+/** 最新予約一覧から、ブラウザが返した行トークンに完全一致する項目を探します。 */
 function queueRowForToken(token) {
   const normalized = String(token == null ? '' : token);
   return currentRemoteQueue().find((row) => row.token === normalized) || null;
 }
 
+/** 許可された演奏操作だけを解析済みDAM関数へ渡し、更新後状態を返します。 */
 function performRemoteControl(action) {
   const descriptor = DAM_TARGET_MANIFEST.hooks.remotePlaybackControl;
   const state = currentRemoteState();
@@ -160,6 +166,7 @@ function performRemoteControl(action) {
   return currentRemoteState();
 }
 
+/** 予約取消・上下移動を解析済みDAM関数で実行し、更新後一覧を返します。 */
 function performRemoteQueueAction(action, token) {
   const descriptor = DAM_TARGET_MANIFEST.hooks.remoteRequestQueue;
   const row = queueRowForToken(token);
@@ -193,9 +200,11 @@ function performRemoteQueueAction(action, token) {
   return currentRemoteQueue();
 }
 
+/** プレイヤーへの最終URL引き渡しを監視し、その瞬間だけローカルURLへ置換します。 */
 function installNativeHooks() {
   const setFile = DAM_TARGET_MANIFEST.hooks.playerSetFile;
   Interceptor.attach(rva(setFile.rva), {
+    // プレイヤー引数から元URLを読み、登録成功時だけ今回の呼び出し引数を差し替えます。
     onEnter(args) {
       const highUrl = safeUtf8(args[setFile.highUrlArgument]);
       const lowUrl = safeUtf8(args[setFile.lowUrlArgument]);

@@ -12,11 +12,14 @@
 #include "app_config.h"
 #include "flutter/generated_plugin_registrant.h"
 
+/// Dartプロジェクトを保持する未初期化ウィンドウを生成します。
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
 
+/// 基底クラスの破棄手順へ委譲します。
 FlutterWindow::~FlutterWindow() {}
 
+/// クライアント領域と同寸法のFlutterビューを作り、終了通知チャネルを接続します。
 bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
     return false;
@@ -24,11 +27,10 @@ bool FlutterWindow::OnCreate() {
 
   RECT frame = GetClientArea();
 
-  // The size here must match the window dimensions to avoid unnecessary surface
-  // creation / destruction in the startup path.
+  // 起動時の不要な描画面作成・破棄を避けるため、現在のクライアント領域と同寸法にします。
   flutter_controller_ = std::make_unique<flutter::FlutterViewController>(
       frame.right - frame.left, frame.bottom - frame.top, project_);
-  // Ensure that basic setup of the controller was successful.
+  // エンジンとビューの両方が生成できた場合だけ初期化成功とします。
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
   }
@@ -57,14 +59,14 @@ bool FlutterWindow::OnCreate() {
     this->Show();
   });
 
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
+  // コールバック登録前に初回フレームが完了する場合があるため、再描画を予約して
+  // 表示通知を確実に発生させます。未完了ならこの呼び出しは実質何もしません。
   flutter_controller_->ForceRedraw();
 
   return true;
 }
 
+/// 終了チャネルを先に外し、Flutterコントローラーを解放します。
 void FlutterWindow::OnDestroy() {
   lifecycle_channel_.reset();
   if (flutter_controller_) {
@@ -74,11 +76,12 @@ void FlutterWindow::OnDestroy() {
   Win32Window::OnDestroy();
 }
 
+/// Flutter未処理のWin32メッセージを扱い、WM_CLOSEをDart清掃完了まで保留します。
 LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
-  // Give Flutter, including plugins, an opportunity to handle window messages.
+  // 独自処理の前に、Flutter本体とプラグインへウィンドウメッセージを渡します。
   if (flutter_controller_) {
     std::optional<LRESULT> result =
         flutter_controller_->HandleTopLevelWindowProc(hwnd, message, wparam,

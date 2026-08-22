@@ -7,16 +7,20 @@
 
 import 'dart:io';
 
+/// Webリモコンを家庭内IPv4へ限定し、端末単位の操作頻度を制限します。
 class RemoteAccessPolicy {
   static const int maximumRequestsPerMinute = 180;
   static const int maximumTrackedAddresses = 128;
 
   final Map<String, List<int>> _requestTimes = <String, List<int>>{};
 
+  /// 指定アドレスの直近1分間の要求数を記録し、上限以内か返します。
   bool isRateAllowed(String address) => _consumeRate(address);
 
+  /// サーバー終了時に、端末別の一時的な要求記録を破棄します。
   void clear() => _requestTimes.clear();
 
+  /// 古い要求時刻を除去してから今回の要求を消費し、追跡表も上限管理します。
   bool _consumeRate(String address) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cutoff = now - const Duration(minutes: 1).inMilliseconds;
@@ -32,6 +36,7 @@ class RemoteAccessPolicy {
     return true;
   }
 
+  /// ループバックまたはRFC 1918のIPv4アドレスだけを接続元として許可します。
   static bool isPrivateClient(InternetAddress? address) {
     if (address == null || address.isLoopback) return address != null;
     if (address.type != InternetAddressType.IPv4) return false;
@@ -44,6 +49,7 @@ class RemoteAccessPolicy {
         (first == 192 && second == 168);
   }
 
+  /// 仮想NICを避け、Wi-Fi・Ethernetを優先したQRコード表示用LANアドレスを探します。
   static Future<String?> findPreferredLanAddress() async {
     final interfaces = await NetworkInterface.list(
       type: InternetAddressType.IPv4,

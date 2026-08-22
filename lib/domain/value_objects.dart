@@ -7,12 +7,16 @@
 
 final RegExp _videoAssetIdPattern = RegExp(r'^[0-9A-Za-z]+-[0-9A-Za-z_-]+$');
 
+/// 外部入力を「6184-92」形式の公開動画IDに限定して返します。
+///
+/// 内部IDやパスとして解釈できる文字列は空文字列へ落とします。
 String normalizeVideoAssetId(Object? value) {
   if (value is! String) return '';
   final text = value.trim();
   return text.length <= 128 && _videoAssetIdPattern.hasMatch(text) ? text : '';
 }
 
+/// 外部由来の表示文字列から制御文字と余分な空白を除き、長さを制限します。
 String sanitizeText(Object? value, {required int maximumLength}) {
   if (value is! String) return '';
   final cleaned = value
@@ -24,6 +28,7 @@ String sanitizeText(Object? value, {required int maximumLength}) {
       : cleaned.substring(0, maximumLength);
 }
 
+/// 長さ制限内のHTTP(S) URLだけを解析し、それ以外は拒否します。
 Uri? parseHttpUri(Object? value, {int maximumLength = 8192}) {
   if (value is! String || value.length > maximumLength) return null;
   final uri = Uri.tryParse(value);

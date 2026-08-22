@@ -12,6 +12,7 @@ import 'package:dam_for_windows_tools/domain/tracks.dart';
 import 'package:dam_for_windows_tools/domain/value_objects.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// 公開ID、設定範囲、履歴最小化、URL制限などドメイン境界を検証します。
 void main() {
   test('video IDs use only the public hyphenated form', () {
     expect(normalizeVideoAssetId('6184-92'), '6184-92');

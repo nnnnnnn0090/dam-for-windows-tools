@@ -5,19 +5,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Created: 2026-08-22
 
-# Project-level configuration.
+# Windows版全体のCMake構成を定義します。
 cmake_minimum_required(VERSION 3.14)
 project(dam_for_windows_tools LANGUAGES CXX)
 
-# The name of the executable created for the application. Change this to change
-# the on-disk name of your application.
+# 生成するEXEのファイル名です。変更時はRunner側ではなくここだけを更新します。
 set(BINARY_NAME "DAMforWindowsTools")
 
-# Explicitly opt in to modern CMake behaviors to avoid warnings with recent
-# versions of CMake.
+# 新しいCMakeで互換警告が出ないよう、使用するポリシー範囲を明示します。
 cmake_policy(VERSION 3.14...3.25)
 
-# Define build configuration option.
+# 単一構成・複数構成ジェネレーターのビルド種別を統一します。
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Profile;Release"
@@ -30,47 +28,44 @@ else()
       "Debug" "Profile" "Release")
   endif()
 endif()
-# Define settings for the Profile build mode.
+# ProfileはReleaseと同じコンパイラー・リンカー設定を使用します。
 set(CMAKE_EXE_LINKER_FLAGS_PROFILE "${CMAKE_EXE_LINKER_FLAGS_RELEASE}")
 set(CMAKE_SHARED_LINKER_FLAGS_PROFILE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")
 set(CMAKE_C_FLAGS_PROFILE "${CMAKE_C_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
-# Use Unicode for all projects.
+# 全ターゲットでWindows Unicode APIを使用します。
 add_definitions(-DUNICODE -D_UNICODE)
 
-# Compilation settings that should be applied to most targets.
+# Runnerとプラグインへ適用する共通コンパイル設定です。
 #
-# Be cautious about adding new options here, as plugins use this function by
-# default. In most cases, you should add new options to specific targets instead
-# of modifying this function.
+# プラグインも既定で使うため、アプリ固有オプションは各ターゲットへ追加します。
+# C++17、UTF-8ソース、警告エラー化、例外処理方式だけをここで統一します。
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
-  target_compile_options(${TARGET} PRIVATE /W4 /WX /wd4100)
+  # 日本語コメントをOSの既定コードページに依存せず解釈できるようにします。
+  target_compile_options(${TARGET} PRIVATE /utf-8 /W4 /WX /wd4100)
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
 endfunction()
 
-# Flutter library and tool build rules.
+# Flutterが管理するライブラリとツールのビルドルールを読み込みます。
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
-# Application build; see runner/CMakeLists.txt.
+# アプリRunner本体のビルド定義を読み込みます。
 add_subdirectory("runner")
 
 
-# Generated plugin build rules, which manage building the plugins and adding
-# them to the application.
+# Flutterが生成したプラグインのビルド・組み込み規則を読み込みます。
 include(flutter/generated_plugins.cmake)
 
 
-# === Installation ===
-# Support files are copied into place next to the executable, so that it can
-# run in place. This is done instead of making a separate bundle (as on Linux)
-# so that building and running from within Visual Studio will work.
+# === 配置処理 ===
+# Visual Studioから直接実行できるよう、必要ファイルをEXEと同じ配置先へまとめます。
 set(BUILD_BUNDLE_DIR "$<TARGET_FILE_DIR:${BINARY_NAME}>")
-# Make the "install" step default, as it's required to run.
+# 実行に配置処理が必須なので、Visual Studioの既定ビルドへinstallを含めます。
 set(CMAKE_VS_INCLUDE_INSTALL_TO_DEFAULT_BUILD 1)
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
@@ -94,14 +89,13 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     COMPONENT Runtime)
 endif()
 
-# Copy the native assets provided by the build.dart from all packages.
+# 各パッケージのbuild.dartが生成したWindowsネイティブ資産を配置します。
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
-# Fully re-copy the assets directory on each build to avoid having stale files
-# from a previous install.
+# 前回の古いアセットを混在させないよう、毎回削除してから全体を配置します。
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
 install(CODE "
   file(REMOVE_RECURSE \"${INSTALL_BUNDLE_DATA_DIR}/${FLUTTER_ASSET_DIR_NAME}\")
@@ -109,7 +103,7 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
-# Install the AOT library on non-Debug builds only.
+# AOTライブラリはProfileとReleaseだけへ配置します。
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)

@@ -7,33 +7,18 @@
 
 name: dam_for_windows_tools
 description: "DAM for Windows向け。モジュール・フォアグラウンドチェックの切替、動画差し替え・開始位置調整、採点表現表示、スマホでの楽曲検索・詳細表示・予約・お気に入り・履歴・予約管理・演奏・キー・採点操作に対応する統合ツール。"
-# The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+# 誤って`flutter pub publish`でpub.devへ公開しないようにします。
+publish_to: 'none' # pub.devへ公開する場合だけこの行を削除します。
 
-# The following defines the version and build number for your application.
-# A version number is three numbers separated by dots, like 1.2.43
-# followed by an optional build number separated by a +.
-# Both the version and the builder number may be overridden in flutter
-# build by specifying --build-name and --build-number, respectively.
-# In Android, build-name is used as versionName while build-number used as versionCode.
-# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
-# Read more about iOS versioning at
-# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-# In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
+# アプリ版は`メジャー.マイナー.パッチ+ビルド番号`で定義します。
+# `flutter build`の`--build-name`と`--build-number`で上書きできます。
+# Windowsではbuild-nameが製品・ファイル版の3要素、build-numberが末尾になります。
 version: 1.0.0+1
 
 environment:
   sdk: ^3.13.1
 
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
+# 実行時依存は用途を確認して固定範囲を更新し、`flutter pub outdated`で差分を確認します。
 dependencies:
   flutter:
     sdk: flutter
@@ -44,19 +29,14 @@ dependencies:
   path: ^1.9.1
 
 dev_dependencies:
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
+  # `flutter_lints`の推奨規則はルートのanalysis_options.yamlで有効化します。
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
+# Dart共通項目は https://dart.dev/tools/pub/pubspec を参照してください。
 
-# The following section is specific to Flutter packages.
+# ここからFlutter固有のアセット設定です。
 flutter:
 
   assets:
@@ -73,27 +53,22 @@ flutter:
     - legal/QR-Code-generator-MIT.txt
     - legal/WxWindows-exception-3.1.txt
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
+  # Material Iconsフォントをアプリへ同梱します。
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
+  # アセットを追加する場合の記述例です。
   # assets:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 
-  # An image asset can refer to one or more resolution-specific "variants", see
+  # 解像度別画像の指定方法は次を参照してください。
   # https://flutter.dev/to/resolution-aware-images
 
-  # For details regarding adding assets from package dependencies, see
+  # 依存パッケージのアセット指定方法は次を参照してください。
   # https://flutter.dev/to/asset-from-package
 
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
-  # example:
+  # 独自フォントを追加する場合はflutter配下にfontsセクションを定義します。
+  # familyへフォント名、fontsへアセットと属性を指定する例です。
   # fonts:
   #   - family: Schyler
   #     fonts:
@@ -106,5 +81,4 @@ flutter:
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
   #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+  # 依存パッケージのフォント指定は https://flutter.dev/to/font-from-package を参照してください。

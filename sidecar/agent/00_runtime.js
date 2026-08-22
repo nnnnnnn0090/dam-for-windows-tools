@@ -37,20 +37,24 @@ const LOCAL_SERVER = new RegExp(
   'i',
 );
 
+/** Agent内の診断メッセージをNodeヘルパーへ送ります。 */
 function emitLog(message) {
   send({ type: 'log', message: String(message) });
 }
 
+/** 解析マニフェストのRVAを、対象モジュールの実アドレスへ変換します。 */
 function rva(value) {
   return targetModule.base.add(parseInteger(value));
 }
 
+/** 10進数または0x付き16進数のマニフェスト値を整数へ変換します。 */
 function parseInteger(value) {
   if (typeof value === 'number') return value;
   const text = String(value || '0');
   return text.startsWith('0x') ? parseInt(text.substring(2), 16) : parseInt(text, 10);
 }
 
+/** 空白を許した16進命令列を、検証済みバイト配列へ変換します。 */
 function hexBytes(value) {
   const text = String(value).replace(/\s+/g, '').toLowerCase();
   if (text.length % 2 !== 0 || !/^[0-9a-f]*$/.test(text)) {
@@ -63,18 +67,22 @@ function hexBytes(value) {
   return output;
 }
 
+/** 対象プロセスの指定アドレスから固定長バイト列を読み取ります。 */
 function readBytes(address, length) {
   return Array.from(new Uint8Array(address.readByteArray(length)));
 }
 
+/** 2つのバイト配列が長さを含め完全一致するか判定します。 */
 function sameBytes(left, right) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+/** 診断表示用に、バイト配列を小文字16進文字列へ変換します。 */
 function bytesText(value) {
   return value.map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+/** フック先関数の先頭命令列をマニフェストと照合し、不一致なら接続を拒否します。 */
 function verifyPrefix(name, descriptor) {
   const expected = hexBytes(descriptor.expectedPrefix);
   const actual = readBytes(rva(descriptor.rva), expected.length);
@@ -86,17 +94,19 @@ function verifyPrefix(name, descriptor) {
   }
 }
 
+/** DAMメインスレッド待機用の一時Interceptorをすべて解除します。 */
 function detachMainThreadListener() {
   while (mainThreadListeners.length > 0) {
     const listener = mainThreadListeners.pop();
     try {
       listener.detach();
     } catch (_) {
-      // Script or process teardown can invalidate an armed listener.
+      // スクリプト破棄やDAM終了後は待機中リスナー自体が無効なため、解放を続けます。
     }
   }
 }
 
+/** 所有者のない可視トップレベルウィンドウから、DAMのUIスレッドIDを取得します。 */
 function damUiThreadId() {
   const user32 = Process.getModuleByName('user32.dll');
   const enumWindows = new NativeFunction(
@@ -121,6 +131,7 @@ function damUiThreadId() {
   );
   const processId = Memory.alloc(4);
   let threadId = 0;
+  // DAMプロセスに属する最初の主要ウィンドウを列挙するコールバックです。
   const callback = new NativeCallback(
     (window) => {
       processId.writeU32(0);
@@ -128,7 +139,7 @@ function damUiThreadId() {
       if (processId.readU32() !== Process.id || isWindowVisible(window) === 0) {
         return 1;
       }
-      // GW_OWNER = 4. Prefer DAM's unowned top-level application window.
+      // GW_OWNER=4で所有者を確認し、DAM自身のトップレベルウィンドウを優先します。
       if (!getWindow(window, 4).isNull()) return 1;
       threadId = candidate;
       return 0;
@@ -140,6 +151,7 @@ function damUiThreadId() {
   return threadId;
 }
 
+/** UIスレッドへ到達した保留タスクを順に実行し、次の待機を再設定します。 */
 function drainMainThreadTasks() {
   detachMainThreadListener();
   const tasks = mainThreadTasks.splice(0, mainThreadTasks.length);
@@ -156,11 +168,13 @@ function drainMainThreadTasks() {
   armMainThreadDispatcher();
 }
 
+/** DAMの既存メッセージループを一時フックし、可視UIを変えずタスク実行を促します。 */
 function armMainThreadDispatcher() {
   if (mainThreadListeners.length > 0 || mainThreadTasks.length === 0) return;
   const threadId = damUiThreadId();
   if (threadId === 0) return;
   const user32 = Process.getModuleByName('user32.dll');
+  /** 対象UIスレッドのメッセージ処理時だけ保留タスクを実行します。 */
   const onMessageLoop = function () {
     if (Process.getCurrentThreadId() !== threadId || mainThreadTasks.length === 0) {
       return;
@@ -177,10 +191,11 @@ function armMainThreadDispatcher() {
     'int',
     ['uint', 'uint', 'pointer', 'pointer'],
   );
-  // WM_NULL wakes the existing loop without creating any visible UI action.
+  // WM_NULLで既存ループだけを起こし、本体画面に操作やモーダルを発生させません。
   postThreadMessage(threadId, 0, NULL, NULL);
 }
 
+/** DAM内部操作をUIスレッドへ移し、期限内に実行できなければ拒否します。 */
 function runOnDamMainThread(name, run, timeoutMs = 3000) {
   return new Promise((resolve, reject) => {
     const task = {
@@ -204,6 +219,7 @@ function runOnDamMainThread(name, run, timeoutMs = 3000) {
   });
 }
 
+/** 終了時にUIスレッド待機を解除し、全タスクを明示的なエラーで完了します。 */
 function cancelMainThreadTasks() {
   detachMainThreadListener();
   const tasks = mainThreadTasks.splice(0, mainThreadTasks.length);
@@ -217,6 +233,7 @@ function cancelMainThreadTasks() {
   }
 }
 
+/** 期待命令列を確認して既知の最小パッチだけを適用・復元します。 */
 function setPatch(name, descriptor, enabled) {
   const address = rva(descriptor.rva);
   const expected = hexBytes(descriptor.expected);
@@ -240,6 +257,7 @@ function setPatch(name, descriptor, enabled) {
   patchState.set(name, enabled);
 }
 
+/** Flutterから受け取った機能設定をBoolean初期値へ正規化します。 */
 function normalizeConfig(next) {
   const source = next && typeof next === 'object' ? next : {};
   return {
@@ -250,6 +268,7 @@ function normalizeConfig(next) {
   };
 }
 
+/** 設定変更を既知パッチと採点セッションへ反映します。 */
 function applyConfig(next) {
   const wasScoringEnabled = config.scoringEnabled;
   config = normalizeConfig(next);
@@ -277,6 +296,10 @@ function applyConfig(next) {
   );
 }
 
+/**
+ * このAgent自身が適用した既知バイトだけを原本へ戻します。
+ * 第三者変更が見つかったアドレスは上書きせず、診断イベントを返します。
+ */
 function restorePatches() {
   for (const [name, descriptor] of Object.entries(DAM_TARGET_MANIFEST.patches)) {
     try {
@@ -294,7 +317,7 @@ function restorePatches() {
         });
       }
     } catch (_) {
-      // Process teardown can invalidate the module while unloading.
+      // DAM終了中はモジュール自体が無効になり得るため、残りの復元処理を続けます。
     }
   }
   Interceptor.flush();

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../application/app_controller.dart';
 import 'qr_code_view.dart';
 
+/// 同一Wi-Fi端末向けURLをQRコードで示し、PCブラウザからも開けるダイアログを表示します。
 Future<void> showRemoteControlDialog(
   BuildContext context,
   AppController controller,

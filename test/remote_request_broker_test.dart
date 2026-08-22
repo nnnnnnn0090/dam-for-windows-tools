@@ -8,6 +8,7 @@
 import 'package:dam_for_windows_tools/infrastructure/sidecar/remote_request_broker.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// 相関ID、操作トークン検証、ヘルパー終了時の待機解放を検証します。
 void main() {
   test('correlates an out-of-process search response by request ID', () async {
     Map<String, dynamic>? command;

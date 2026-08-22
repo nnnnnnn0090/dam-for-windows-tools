@@ -7,5 +7,6 @@
 
 import 'dart:convert';
 
+/// 設定や診断情報を、人が確認しやすい2文字インデントのJSONへ変換します。
 String prettyJson(Object value) =>
     const JsonEncoder.withIndent('  ').convert(value);

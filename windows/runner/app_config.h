@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-22
 
+// EXEリソース、ウィンドウ、Flutter間チャネルで共有する製品識別子を定義します。
+
 #pragma once
 
 #define APP_PRODUCT_NAME "DAM for Windows Tools"

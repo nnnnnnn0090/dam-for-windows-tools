@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Created: 2026-08-22
 
+# 固定URL・SHA-256マニフェストから、再現可能なビルド依存物だけを取得します。
+
 [CmdletBinding()]
 param(
   [string]$ManifestPath = (Join-Path $PSScriptRoot 'source_inputs.json'),
@@ -15,6 +17,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+<# 指定ファイルのSHA-256を期待値と比較し、不一致なら直ちに停止します。 #>
 function Get-VerifiedSha256 {
   param(
     [Parameter(Mandatory = $true)][string]$Path,
@@ -27,6 +30,10 @@ function Get-VerifiedSha256 {
   }
 }
 
+<#
+HTTPS・名前・ハッシュを検証し、一時ファイル経由で依存物をキャッシュします。
+失敗時は指数バックオフで指定回数だけ再試行し、未検証ファイルを残しません。
+#>
 function Receive-PinnedInput {
   param(
     [Parameter(Mandatory = $true)][string]$FileName,

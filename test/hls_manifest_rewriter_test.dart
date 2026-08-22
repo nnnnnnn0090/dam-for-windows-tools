@@ -11,6 +11,7 @@ import 'package:dam_for_windows_tools/infrastructure/media/hls_manifest_rewriter
 import 'package:dam_for_windows_tools/infrastructure/media/media_job.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// HLSの相対URIと暗号鍵URIが、上流を隠すローカル経路へ変換されることを検証します。
 void main() {
   test(
     'rewrites HLS media, variant, and key URIs into opaque local routes',

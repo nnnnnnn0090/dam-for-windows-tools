@@ -20,7 +20,12 @@ import 'diagnostic_log.dart';
 import 'scoring_session_state.dart';
 import 'track_history_state.dart';
 
+/// GUIが監視するアプリ全体の状態と、利用者操作の入口を提供します。
+///
+/// 表示層にはインフラ実装を直接見せず、Sidecarイベントを履歴・採点・配信の
+/// 各状態へ振り分けるアプリケーション層の調整役です。
 class AppController extends ChangeNotifier {
+  /// 未初期化のコントローラーを生成します。実サービスの構築は[initialize]で行います。
   AppController();
 
   AppRuntime? _runtime;
@@ -35,16 +40,34 @@ class AppController extends ChangeNotifier {
   String connectionCode = 'initializing';
   String connectionState = '初期化中';
   String? fatalError;
+
+  /// 現在の曲で採点イベントを受信中か返します。
   bool get scoringActive => _scoring.active;
 
+  /// 永続履歴と現在セッションの配信状態をまとめた表示行を返します。
   List<TrackView> get tracks => _history.views;
+
+  /// ローカル動画配信サーバーが要求を受けられる状態か返します。
   bool get serverRunning => _runtime?.serverRunning == true;
+
+  /// 同一LANの端末から開くWebリモコンURLを返します。
   String? get remoteControlUrl => _runtime?.remoteControlUrl;
+
+  /// 技法別の検出回数を、変更できない参照として返します。
   Map<int, int> get scoringCounts => _scoring.counts;
+
+  /// 現在の採点セッションで受信した時系列イベントを返します。
   List<ScoringEvent> get scoringEvents => _scoring.events;
+
+  /// 採点表示の即時更新に使う、直近の技法イベントを返します。
   ScoringEvent? get lastScoringEvent => _scoring.lastEvent;
+
+  /// 診断ダイアログへ表示する、上限管理済みログを返します。
   List<String> get logs => _diagnostics.entries;
 
+  /// 永続データと各サービスを構築し、DAM監視を開始します。
+  ///
+  /// 途中で失敗した場合は生成済みサービスを終了し、GUIには致命エラーを残します。
   Future<void> initialize() async {
     try {
       final startup = await AppRuntime.create(
@@ -71,16 +94,19 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 正規化した設定を保存し、接続中のSidecarへ即時反映します。
   Future<void> updateSettings(AppSettings next) async {
     settings = next.normalized();
     notifyListeners();
     await _runtime?.updateSettings(settings);
   }
 
+  /// DAMとの接続だけを張り直し、GUIやローカルサーバーは維持します。
   Future<void> reconnect() async {
     _runtime?.reconnect();
   }
 
+  /// OS既定ブラウザでWebリモコンを開き、失敗時は診断ログへ記録します。
   Future<void> openRemoteControl() async {
     try {
       await _runtime?.openRemoteControl();
@@ -89,10 +115,12 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// テストから実際と同じイベント振り分け経路を呼び出します。
   @visibleForTesting
   Future<void> handleSidecarEventForTest(Map<String, dynamic> event) =>
       _handleSidecarEvent(event);
 
+  /// 選択された動画をアプリ管理領域へ取り込み、指定IDの次回再生へ割り当てます。
   Future<void> chooseManualVideo(String videoId) async {
     try {
       final changed = await _runtime?.chooseManualVideo(videoId) == true;
@@ -105,6 +133,7 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// 指定IDに保存した差し替え動画を削除し、以後は公式動画へ戻します。
   Future<void> clearManualVideo(String videoId) async {
     try {
       await _runtime?.clearManualVideo(videoId);
@@ -115,9 +144,11 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// 指定IDに、現在利用可能な差し替え動画が登録されているか返します。
   bool hasManualVideo(String videoId) =>
       _runtime?.hasManualVideo(videoId) == true;
 
+  /// 曲情報だけの再生履歴をメモリと永続ストレージの両方から消去します。
   Future<void> clearHistory() async {
     _history.clear();
     await _runtime?.clearHistory();
@@ -125,22 +156,26 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 現在表示中の採点回数とイベントだけを消去します。
   void clearScoringSession() {
     _scoring.clear();
     notifyListeners();
   }
 
+  /// 指定動画の配信段階を更新し、同じ内容を診断ログにも残します。
   void markStage(String videoId, PlaybackStage stage, String detail) {
     _history.markStage(videoId, stage);
     addLog('[$videoId] ${stage.label}: $detail');
     notifyListeners();
   }
 
+  /// 時刻付き診断ログを追加し、ログ表示中のGUIへ変更を通知します。
   void addLog(String message) {
     _diagnostics.add(message);
     notifyListeners();
   }
 
+  /// 多重実行を防ぎながら、パッチ復元を含む全サービス終了処理を開始します。
   Future<void> shutdown() async {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -148,6 +183,7 @@ class AppController extends ChangeNotifier {
     await _runtime?.shutdown();
   }
 
+  /// Sidecarから届く型付きイベントを、対応するアプリ状態へ振り分けます。
   Future<void> _handleSidecarEvent(Map<String, dynamic> event) async {
     final type = event['type']?.toString() ?? '';
     switch (type) {
@@ -183,11 +219,13 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// 前曲の採点結果を破棄して、新しい採点セッションを開始します。
   void _beginScoringSession() {
     _scoring.begin();
     addLog('採点セッションを開始しました');
   }
 
+  /// 数値検証を通った技法通知だけを現在の採点セッションへ追加します。
   void _acceptScoringTechnique(Map<String, dynamic> event) {
     final rawTechnique = event['technique'];
     final rawValue = event['value'];
@@ -207,12 +245,14 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// 採点結果を画面に残したまま、追加イベントの受付状態を終了します。
   void _finishScoringSession() {
     if (!_scoring.active) return;
     _scoring.deactivate();
     addLog('採点セッションを終了しました');
   }
 
+  /// DAMから読み取った曲情報をID完全一致で履歴へ反映し、変更時だけ保存します。
   void _acceptMetadata(Map<String, dynamic> event) {
     final rawCandidates = event['candidates'];
     if (rawCandidates is! List) return;
@@ -226,6 +266,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 最終プレイヤー経路で確定した公開動画IDを、初めて再生履歴へ登録します。
   Future<void> _acceptPlayback(PlaybackDescriptor descriptor) async {
     final videoId = _safeId(descriptor.videoId);
     if (videoId.isEmpty) {
@@ -238,6 +279,9 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sidecarの同期準備要求に対し、ローカル配信URLを登録して結果を返します。
+  ///
+  /// 登録に失敗しても公式URLへ退避できるよう、拒否応答と状態更新を必ず行います。
   Future<void> _prepareReplacement(Map<String, dynamic> event) async {
     final requestId = event['requestId']?.toString() ?? '';
     final descriptor = PlaybackDescriptor.fromJson(event);
@@ -263,10 +307,12 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// 現在の履歴から永続化対象3項目だけを保存します。
   Future<void> _persistHistory() async {
     await _runtime?.saveHistory(_history.records);
   }
 
+  /// 信頼できないイベント値を公開動画ID形式へ限定します。
   static String _safeId(String value) {
     return normalizeVideoAssetId(value);
   }

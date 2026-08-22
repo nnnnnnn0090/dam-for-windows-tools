@@ -9,11 +9,14 @@ import 'package:flutter/material.dart';
 
 import '../widgets/panel.dart';
 
+/// 初期化を継続できない場合に、コピー可能な原因だけを中央表示します。
 class FatalErrorView extends StatelessWidget {
+  /// 利用者が診断へ使えるエラー文字列を受け取ります。
   const FatalErrorView({super.key, required this.error});
 
   final String error;
 
+  /// 通常操作を隠し、起動失敗と詳細を明確に示すパネルを構築します。
   @override
   Widget build(BuildContext context) {
     return Center(

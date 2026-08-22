@@ -10,6 +10,7 @@ import path from 'node:path';
 
 export const targetManifestFilename = 'supported-dam.json';
 
+/** 対応DAMマニフェストとローカル配信Originを検証し、変更不能な構成を返します。 */
 export function loadTargetConfiguration(helperDirectory) {
   const manifestPath = path.join(helperDirectory, targetManifestFilename);
   if (!fs.existsSync(manifestPath)) {
@@ -35,6 +36,7 @@ export function loadTargetConfiguration(helperDirectory) {
   });
 }
 
+/** 動画置換先を認証情報のない127.0.0.1上のHTTP Originだけに制限します。 */
 export function normalizeMediaOrigin(value) {
   const url = new URL(String(value || ''));
   if (

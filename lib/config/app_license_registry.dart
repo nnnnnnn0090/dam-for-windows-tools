@@ -8,9 +8,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+/// Flutter標準のライセンス画面へ、本体と同梱物の通知文を登録します。
 abstract final class AppLicenseRegistry {
   static bool _registered = false;
 
+  /// アプリのライセンス、第三者通知、非公式表示を起動中に1回だけ登録します。
   static void register() {
     if (_registered) return;
     _registered = true;
@@ -41,6 +43,7 @@ abstract final class AppLicenseRegistry {
     ], 'LEGAL_NOTICE.md');
   }
 
+  /// 1つの同梱文書を、指定した製品名のライセンス項目として遅延読み込みします。
   static void _addAsset(List<String> packages, String asset) {
     LicenseRegistry.addLicense(() async* {
       final text = await rootBundle.loadString(asset);
@@ -48,6 +51,7 @@ abstract final class AppLicenseRegistry {
     });
   }
 
+  /// 複数文書で構成されるライセンスを、1項目へ連結して登録します。
   static void _addAssets(List<String> packages, List<String> assets) {
     LicenseRegistry.addLicense(() async* {
       final sections = await Future.wait(assets.map(rootBundle.loadString));

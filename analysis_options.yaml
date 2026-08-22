@@ -5,15 +5,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Created: 2026-08-22
 
-# This file configures the analyzer, which statically analyzes Dart code to
-# check for errors, warnings, and lints.
+# Dartコードのエラー・警告・Lintを静的検査するAnalyzer設定です。
 #
-# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
-# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
-# invoked from the command line by running `flutter analyze`.
+# 検出内容はDart対応IDEへ表示され、`flutter analyze`からも同じ検査を実行できます。
 
-# The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
+# Flutterアプリ向けの推奨Lint規則を基準として読み込みます。
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
@@ -27,19 +23,13 @@ analyzer:
     - linux/**
 
 linter:
-  # The lint rules applied to this project can be customized in the
-  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
-  # included above or to enable additional rules. A list of all available lints
-  # and their documentation is published at https://dart.dev/lints.
+  # 上で読み込んだ規則の無効化や追加規則は、このセクションで明示します。
+  # 利用可能な規則は https://dart.dev/lints を参照してください。
   #
-  # Instead of disabling a lint rule for the entire project in the
-  # section below, it can also be suppressed for a single line of code
-  # or a specific dart file by using the `// ignore: name_of_lint` and
-  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
-  # producing the lint.
+  # 一部だけを除外する場合は全体規則を無効にせず、対象行の`ignore`または
+  # 対象ファイルの`ignore_for_file`を理由付きで使用します。
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # avoid_print: false  # `avoid_print`を無効にする場合の例です。
+    # prefer_single_quotes: true  # `prefer_single_quotes`を有効にする場合の例です。
 
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+# 詳細は https://dart.dev/guides/language/analysis-options を参照してください。

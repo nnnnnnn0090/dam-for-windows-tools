@@ -12,6 +12,7 @@ import 'package:dam_for_windows_tools/domain/scoring.dart';
 import 'package:dam_for_windows_tools/domain/tracks.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// 履歴・採点・診断ログの、セッション内状態管理を検証します。
 void main() {
   test(
     'track history adds only playback and updates exact metadata aliases',

@@ -6,12 +6,11 @@
 // Created: 2026-08-22
 
 //{{NO_DEPENDENCIES}}
-// Microsoft Visual C++ generated include file.
-// Used by Runner.rc
+// Microsoft Visual C++が管理する、Runner.rc用のリソースID定義です。
 //
 #define IDI_APP_ICON                    101
 
-// Next default values for new objects
+// Visual Studioで次に追加するリソースの既定IDです。
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS

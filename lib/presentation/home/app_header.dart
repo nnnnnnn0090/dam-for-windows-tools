@@ -11,14 +11,18 @@ import '../../application/app_controller.dart';
 import '../../config/app_config.dart';
 import '../widgets/remote_control_dialog.dart';
 
+/// 製品名、DAM接続状態、ライセンス、リモコン、再接続を横一列に表示します。
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
+  /// 表示と操作に使うアプリコントローラーを受け取ります。
   const AppHeader({super.key, required this.controller});
 
   final AppController controller;
 
+  /// Windows向けに固定したヘッダー高さを返します。
   @override
   Size get preferredSize => const Size.fromHeight(52);
 
+  /// 接続状態を常時確認できる、最小限のアプリバーを構築します。
   @override
   Widget build(BuildContext context) {
     return AppBar(
@@ -82,6 +86,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
+/// Sidecarの接続状態コードを、ヘッダー表示用の信号色へ変換します。
 Color connectionColor(String state) {
   switch (state) {
     case 'attached':

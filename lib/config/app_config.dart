@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-22
 
+/// 製品名、保存先名、ポートなど、層をまたいで共有する固定値を集約します。
+///
+/// 対象DAMのバージョン固有値はSidecarマニフェスト側へ分離し、将来の対応版追加で
+/// GUIや保存形式まで変更する必要がない構成にしています。
 abstract final class AppConfig {
   static const productName = 'DAM for Windows Tools';
   static const remoteName = 'DAM for Windows Remote';

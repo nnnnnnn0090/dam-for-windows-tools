@@ -8,14 +8,20 @@
 import 'dart:async';
 import 'dart:io';
 
+/// SidecarのURL置換要求へ返す、登録済みジョブの公開情報です。
 class MediaRegistration {
+  /// 内部ジョブIDとDAMが再生するローカルURLを生成します。
   const MediaRegistration({required this.jobId, required this.localUrl});
 
   final String jobId;
   final String localUrl;
 }
 
+/// 1回のローカル再生について、入力候補・生成状態・中継資産を保持します。
+///
+/// この型はセッション中だけ存在し、終了時にURLやファイルパスとともに破棄されます。
 class MediaJob {
+  /// 登録時点の動画情報と出力先から未開始ジョブを生成します。
   MediaJob({
     required this.id,
     required this.videoId,

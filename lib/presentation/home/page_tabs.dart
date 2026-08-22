@@ -7,7 +7,9 @@
 
 import 'package:flutter/material.dart';
 
+/// 動画管理と採点表示を切り替える、デスクトップ向けタブ列です。
 class PageTabs extends StatelessWidget {
+  /// 選択位置と、親画面へ返す選択コールバックを受け取ります。
   const PageTabs({
     super.key,
     required this.selectedIndex,
@@ -17,6 +19,7 @@ class PageTabs extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
 
+  /// 固定高さのタブ列を構築します。
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -44,7 +47,9 @@ class PageTabs extends StatelessWidget {
   }
 }
 
+/// 選択状態を下線と文字色で示す、個別のタブです。
 class _PageTab extends StatelessWidget {
+  /// ラベル、選択状態、押下処理を受け取ります。
   const _PageTab({
     required this.label,
     required this.selected,
@@ -55,6 +60,7 @@ class _PageTab extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Windowsのポインター操作に適した固定幅タブを構築します。
   @override
   Widget build(BuildContext context) {
     return InkWell(

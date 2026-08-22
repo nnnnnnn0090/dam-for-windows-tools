@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-22
 
-// Microsoft Visual C++ generated resource script.
+// Microsoft Visual C++形式のアイコン・版情報リソースを定義します。
 //
 #pragma code_page(65001)
 #include "app_config.h"
@@ -14,7 +14,7 @@
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
 //
-// Generated from the TEXTINCLUDE 2 resource.
+// TEXTINCLUDE 2リソースから展開する共通ヘッダーです。
 //
 #include "winres.h"
 
@@ -22,7 +22,7 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// English (United States) resources
+// 英語（米国）コードページのリソースです。
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
@@ -55,17 +55,16 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Icon
+// アプリケーションアイコン
 //
 
-// Icon with lowest ID value placed first to ensure application icon
-// remains consistent on all systems.
+// 全Windows環境で同じアプリアイコンになるよう、最小IDのアイコンを先頭に置きます。
 IDI_APP_ICON            ICON                    "resources\\app_icon.ico"
 
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Version
+// EXE版情報
 //
 
 #if defined(FLUTTER_VERSION_MAJOR) && defined(FLUTTER_VERSION_MINOR) && defined(FLUTTER_VERSION_PATCH) && defined(FLUTTER_VERSION_BUILD)
@@ -113,7 +112,7 @@ BEGIN
     END
 END
 
-#endif    // English (United States) resources
+#endif    // 英語（米国）リソースの終端
 /////////////////////////////////////////////////////////////////////////////
 
 
@@ -121,9 +120,9 @@ END
 #ifndef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
 //
-// Generated from the TEXTINCLUDE 3 resource.
+// TEXTINCLUDE 3リソースから展開する追記領域です。
 //
 
 
 /////////////////////////////////////////////////////////////////////////////
-#endif    // not APSTUDIO_INVOKED
+#endif    // APSTUDIO_INVOKED未定義領域の終端

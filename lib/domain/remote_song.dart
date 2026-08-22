@@ -7,6 +7,7 @@
 
 import 'value_objects.dart';
 
+/// Webリモコンで選択できる検索元を表します。
 enum RemoteSearchMode {
   keyword,
   title,
@@ -17,16 +18,21 @@ enum RemoteSearchMode {
   history,
 }
 
+/// Dart上の列挙値をSidecarプロトコルの検索モード名へ変換します。
 extension RemoteSearchModeWire on RemoteSearchMode {
+  /// `newReleases`だけは既存プロトコルに合わせて`new`として送信します。
   String get wireName => switch (this) {
     RemoteSearchMode.newReleases => 'new',
     _ => name,
   };
 }
 
+/// 曲ごとに選択できるDAMの演奏素材を表します。
 enum RemotePlayType { standard, guideVocal, artistVideo }
 
+/// 曲詳細APIから得た、予約条件の選択に必要な付加情報を表します。
 class RemoteSongDetail {
+  /// 動画ID、歌いだし、原曲キー、対応演奏タイプをまとめて生成します。
   const RemoteSongDetail({
     required this.videoId,
     required this.startLyric,
@@ -39,8 +45,10 @@ class RemoteSongDetail {
   final int originalKey;
   final Set<RemotePlayType> playTypes;
 
+  /// 指定した演奏タイプをこの曲で予約できるか判定します。
   bool supports(RemotePlayType type) => playTypes.contains(type);
 
+  /// Sidecar応答を検証し、未知の演奏タイプを除外して曲詳細を復元します。
   factory RemoteSongDetail.fromJson(Map<String, dynamic> json) {
     final playTypes = <RemotePlayType>{};
     final rawPlayTypes = json['playTypes'];
@@ -60,6 +68,7 @@ class RemoteSongDetail {
     );
   }
 
+  /// Webリモコンの曲詳細画面へ返す形式に変換します。
   Map<String, Object> toJson() => <String, Object>{
     'videoId': videoId,
     'startLyric': startLyric,
@@ -68,7 +77,9 @@ class RemoteSongDetail {
   };
 }
 
+/// 検索結果・お気に入り・履歴に共通して表示する曲または歌手を表します。
 class RemoteSong {
+  /// Sidecar操作用トークンと、利用者に見せる曲情報をまとめて生成します。
   const RemoteSong({
     required this.token,
     required this.videoId,
@@ -87,11 +98,15 @@ class RemoteSong {
   final bool favorite;
   final bool history;
 
+  /// この行が曲ではなく歌手一覧への導線かどうかを返します。
   bool get isArtist => kind == 'artist';
+
+  /// 安全な操作トークンと表示先を持ち、検索結果として利用できるか判定します。
   bool get isDisplayableSearchResult =>
       token.isNotEmpty &&
       (videoId.isNotEmpty || isArtist || favorite || history);
 
+  /// Sidecar応答から、許可した文字だけの操作トークンと正規化済み表示値を復元します。
   factory RemoteSong.fromJson(Map<String, dynamic> json) {
     final rawToken = json['token'];
     final token =
@@ -111,6 +126,7 @@ class RemoteSong {
     );
   }
 
+  /// ブラウザへ公開する曲情報をJSON形式へ変換します。
   Map<String, Object> toJson() => <String, Object>{
     'token': token,
     'videoId': videoId,

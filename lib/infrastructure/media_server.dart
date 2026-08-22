@@ -28,7 +28,12 @@ import 'media/media_job.dart';
 export 'media/media_events.dart' show PlaybackStageHandler;
 export 'media/media_job.dart' show MediaRegistration;
 
+/// DAMへ安全なローカルHLS URLを渡し、公式中継と動画変換を振り分けます。
+///
+/// 上流URLやファイルパスをHTTPパスへ露出せず、セッショントークンとジョブIDで
+/// 今回の起動に登録された動画だけをループバックへ配信します。
 class LocalMediaServer {
+  /// 配信先、状態通知、診断ログを受け取り、推測困難なセッショントークンを生成します。
   LocalMediaServer({
     required this.paths,
     required this.onStage,
@@ -66,9 +71,13 @@ class LocalMediaServer {
   HttpServer? _server;
   bool _stopping = false;
 
+  /// HTTPサーバーが待受中か返します。
   bool get isRunning => _server != null;
+
+  /// OSが実際に割り当てたポートを返し、未起動時は設定値を返します。
   int get boundPort => _server?.port ?? listenPort;
 
+  /// IPv4ループバックだけでHTTP待受を開始し、要求処理を非同期で継続します。
   Future<void> start() async {
     if (_server != null) return;
     _stopping = false;
@@ -89,6 +98,10 @@ class LocalMediaServer {
     );
   }
 
+  /// 再生情報と設定からジョブを登録し、DAMへ返すローカルURLを生成します。
+  ///
+  /// 同一セッション・動画ID・補正値・ソース種別の成功ジョブは再利用し、公式URLは
+  /// 再生のたびに最新候補へ更新します。
   Future<MediaRegistration> register(
     PlaybackDescriptor descriptor,
     AppSettings settings,
@@ -142,6 +155,7 @@ class LocalMediaServer {
     return MediaRegistration(jobId: jobId, localUrl: _localUrl(jobId));
   }
 
+  /// 検証済みの管理動画を指定IDへ割り当て、古いジョブキャッシュを無効化します。
   Future<void> setManualSource(String rawVideoId, File file) async {
     final videoId = normalizeVideoAssetId(rawVideoId);
     if (videoId.isEmpty) throw ArgumentError('動画IDが不正です');
@@ -151,6 +165,7 @@ class LocalMediaServer {
     onLog('[$videoId] 保存済みのGUI差し替え動画を登録しました');
   }
 
+  /// 起動時に管理領域から見つかった差し替え動画を一括登録します。
   void restoreManualSources(Map<String, File> sources) {
     _manualSources
       ..clear()
@@ -160,14 +175,17 @@ class LocalMediaServer {
     }
   }
 
+  /// 指定IDの手動ソースを解除し、次回登録を公式動画へ戻します。
   void clearManualSource(String rawVideoId) {
     _manualSources.remove(normalizeVideoAssetId(rawVideoId));
     _cache.clear();
   }
 
+  /// 指定IDへ差し替え動画が割り当てられているか返します。
   bool hasManualSource(String rawVideoId) =>
       _manualSources.containsKey(normalizeVideoAssetId(rawVideoId));
 
+  /// HTTP受付、FFmpeg、上流クライアントを停止し、セッション内ジョブを破棄します。
   Future<void> stop() async {
     _stopping = true;
     final server = _server;
@@ -180,6 +198,9 @@ class LocalMediaServer {
     _manualSources.clear();
   }
 
+  /// HTTPメソッド、セッショントークン、ジョブ、資産IDを順に検証して配信します。
+  ///
+  /// 許可していない経路はすべて404とし、例外時もDAMへ応答を閉じて待機を残しません。
   Future<void> _handleRequest(HttpRequest request) async {
     try {
       request.response.headers
@@ -243,6 +264,10 @@ class LocalMediaServer {
     }
   }
 
+  /// ジョブ条件に応じて公式HLS中継またはFFmpeg生成マニフェストを返します。
+  ///
+  /// 変換失敗・90秒超過・空ファイルでは公式配信へ退避し、ローカルエラーをDAMへ
+  /// 直接返さないようにします。
   Future<void> _serveIndex(HttpRequest request, MediaJob job) async {
     onStage(job.videoId, PlaybackStage.manifestRequested, 'マニフェスト要求を受信');
     if (job.manualSource == null && job.skipMs == 0) {
@@ -283,6 +308,7 @@ class LocalMediaServer {
     onStage(job.videoId, PlaybackStage.streaming, 'ローカルHLSを配信中');
   }
 
+  /// 生成済みMPEG-TSを、出力ディレクトリ外への参照を拒否して配信します。
   Future<void> _serveSegment(
     HttpRequest request,
     MediaJob job,
@@ -310,10 +336,12 @@ class LocalMediaServer {
     onStage(job.videoId, PlaybackStage.streaming, '動画セグメントを配信中');
   }
 
+  /// セッショントークンとジョブIDだけを含むローカルマニフェストURLを組み立てます。
   String _localUrl(String jobId) =>
       'http://${AppConfig.loopbackHost}:'
       '$boundPort/v1/$sessionToken/$jobId/index.m3u8';
 
+  /// HTTPパスの推測とジョブID衝突を防ぐ暗号学的乱数を生成します。
   static String _randomHex(int bytes) {
     final random = Random.secure();
     return List<int>.generate(

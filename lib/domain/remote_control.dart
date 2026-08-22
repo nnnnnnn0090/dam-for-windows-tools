@@ -7,7 +7,11 @@
 
 import 'value_objects.dart';
 
+/// Webリモコンへ公開する、DAMの接続状態と現在の演奏状態を表します。
+///
+/// DAM内部の値を直接公開せず、表示と操作判断に必要な最小項目だけを保持します。
 class RemoteControlState {
+  /// 接続・再生・キー・曲情報をまとめたリモコン状態を生成します。
   const RemoteControlState({
     required this.connected,
     required this.playing,
@@ -28,6 +32,7 @@ class RemoteControlState {
   final String artist;
   final String title;
 
+  /// Sidecar応答を検証し、キー範囲と表示文字列を正規化して復元します。
   factory RemoteControlState.fromJson(Map<String, dynamic> json) {
     final rawKey = json['key'];
     return RemoteControlState(
@@ -42,6 +47,7 @@ class RemoteControlState {
     );
   }
 
+  /// ブラウザへ返してよい項目だけをJSON形式へ変換します。
   Map<String, Object> toJson() => <String, Object>{
     'connected': connected,
     'playing': playing,
@@ -54,7 +60,9 @@ class RemoteControlState {
   };
 }
 
+/// DAMの予約一覧にある1曲を、並べ替え操作用の識別子とともに表します。
 class RemoteQueueEntry {
+  /// 予約順、割り込み状態、画面表示用の曲情報をまとめて生成します。
   const RemoteQueueEntry({
     required this.token,
     required this.queueId,
@@ -71,6 +79,7 @@ class RemoteQueueEntry {
   final String artist;
   final String title;
 
+  /// Sidecar応答から予約行を復元し、操作トークンの形式を厳密に検証します。
   factory RemoteQueueEntry.fromJson(Map<String, dynamic> json) {
     final rawToken = json['token'];
     final rawQueueId = json['queueId'];
@@ -90,6 +99,7 @@ class RemoteQueueEntry {
     );
   }
 
+  /// Webリモコンの予約一覧へ返す形式に変換します。
   Map<String, Object> toJson() => <String, Object>{
     'token': token,
     'queueId': queueId,

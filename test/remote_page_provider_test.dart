@@ -9,6 +9,7 @@ import 'package:dam_for_windows_tools/config/app_config.dart';
 import 'package:dam_for_windows_tools/infrastructure/remote_page_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// リモコンHTML・CSS・JavaScriptの一体化とキャッシュを検証します。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

@@ -13,6 +13,7 @@ import 'package:dam_for_windows_tools/infrastructure/remote_control_server.dart'
 import 'package:dam_for_windows_tools/infrastructure/remote_page_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// リモコン画面・セキュリティヘッダー・入力上限・履歴APIを実HTTPで検証します。
 void main() {
   test(
     'remote server requires its token and rejects unsafe requests',
@@ -106,7 +107,9 @@ void main() {
   );
 }
 
+/// テスト用の固定HTMLを返し、Flutterアセット読込をHTTP検証から分離します。
 class _StaticRemotePageProvider extends RemotePageProvider {
+  /// 外部アセットを使わず、最小の有効HTMLを返します。
   @override
   Future<String> load() async => '<!doctype html><title>Remote</title>';
 }

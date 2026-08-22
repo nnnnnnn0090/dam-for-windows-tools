@@ -16,7 +16,12 @@ import '../app_paths.dart';
 import 'media_events.dart';
 import 'media_job.dart';
 
+/// 手動動画または遅延補正が必要な上流動画を、DAM互換の720p HLSへ変換します。
+///
+/// MP4中間ファイルは作らず、2秒MPEG-TSと原子的更新マニフェストを今回の
+/// セッションディレクトリへ直接生成します。
 class HlsTranscoder {
+  /// 同梱FFmpegのパスと状態通知先、終了判定を受け取ります。
   HlsTranscoder({
     required this.paths,
     required this.onStage,
@@ -32,12 +37,14 @@ class HlsTranscoder {
   final bool Function() isStopping;
   final Set<Process> _processes = <Process>{};
 
+  /// 同じジョブのFFmpegを二重起動せず、バックグラウンドで生成を開始します。
   void ensureStarted(MediaJob job) {
     if (job.transcodeStarted) return;
     job.transcodeStarted = true;
     unawaited(_run(job));
   }
 
+  /// 管理中の全FFmpegを終了し、3秒で止まらないプロセスは強制終了します。
   Future<void> stop() async {
     final processes = _processes.toList(growable: false);
     for (final process in processes) {
@@ -55,6 +62,7 @@ class HlsTranscoder {
     _processes.clear();
   }
 
+  /// 手動動画またはhigh→lowの順で変換を試み、全失敗時は公式退避へ切り替えます。
   Future<void> _run(MediaJob job) async {
     final sources = <String>[
       if (job.manualSource != null) job.manualSource!.path,
@@ -92,6 +100,9 @@ class HlsTranscoder {
     onStage(job.videoId, PlaybackStage.officialFallback, 'HLS生成失敗のため公式へ退避');
   }
 
+  /// 1つの入力でFFmpegを実行し、先頭2セグメントと全尺完了を監視します。
+  ///
+  /// 標準エラーは末尾20行だけ保持し、長時間実行でメモリを増やしません。
   Future<bool> _runAttempt(MediaJob job, String source) async {
     final segmentPattern = p.join(job.outputDirectory.path, 'segment_%06d.ts');
     final indexPath = p.join(job.outputDirectory.path, 'index.m3u8');
@@ -147,6 +158,7 @@ class HlsTranscoder {
     return false;
   }
 
+  /// 720p・H.264 baseline・AAC・2秒EVENT HLSへ固定するFFmpeg引数を構築します。
   List<String> _arguments(
     MediaJob job,
     String source,
@@ -225,6 +237,7 @@ class HlsTranscoder {
     ];
   }
 
+  /// マニフェストと空でない先頭2セグメントが揃い、再生開始可能か判定します。
   Future<bool> _hasPlayableOutput(Directory output) async {
     final index = File(p.join(output.path, 'index.m3u8'));
     if (!await index.exists() || await index.length() == 0) return false;
@@ -238,6 +251,7 @@ class HlsTranscoder {
     return false;
   }
 
+  /// 再生可能出力に`EXT-X-ENDLIST`があり、全尺生成が正常完了したか判定します。
   Future<bool> _hasCompleteOutput(Directory output) async {
     if (!await _hasPlayableOutput(output)) return false;
     final index = File(p.join(output.path, 'index.m3u8'));

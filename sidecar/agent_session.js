@@ -14,7 +14,9 @@ import { agentFragmentNames, composeAgentSource } from './agent_source.js';
 import { normalizeConfig } from './helper_config.js';
 import { findTarget, sha256 } from './target_discovery.js';
 
+/** 対象DAMの検証、Frida接続、Agent寿命、URL準備待機を一括管理します。 */
 export class AgentSession {
+  /** 対応構成と通知先を受け取り、未接続セッションを生成します。 */
   constructor({ helperDirectory, targetConfiguration, protocol }) {
     this.helperDirectory = helperDirectory;
     this.targetConfiguration = targetConfiguration;
@@ -28,6 +30,10 @@ export class AgentSession {
     this.pendingPreparations = new Map();
   }
 
+  /**
+   * 対象プロセスとSHA-256を検証し、一致したDAMだけへAgentを接続します。
+   * 接続途中の失敗では、適用済みパッチの復元とセッション解放を必ず試行します。
+   */
   async ensureAttached() {
     if (this.shuttingDown || this.attaching || this.session) return;
     this.attaching = true;
@@ -102,11 +108,13 @@ export class AgentSession {
     }
   }
 
+  /** 最新の機能設定を保持し、接続済みAgentへ即時反映します。 */
   async updateConfig(command) {
     this.currentConfig = normalizeConfig(command);
     if (this.script) await this.script.exports.updateConfig(this.currentConfig);
   }
 
+  /** Flutterから届いたローカルURL登録結果を、待機中のFridaメッセージへ返します。 */
   respondToPreparation(command) {
     if (!this.script || !command.requestId) return;
     const requestId = String(command.requestId);
@@ -124,11 +132,13 @@ export class AgentSession {
     });
   }
 
+  /** 現在接続を安全に切断してから、対象DAMを再探索します。 */
   async reconnect() {
     await this.detach();
     await this.ensureAttached();
   }
 
+  /** パッチ復元、Agent破棄、Frida切断の順で接続資源を解放します。 */
   async detach() {
     const activeScript = this.script;
     const activeSession = this.session;
@@ -141,7 +151,7 @@ export class AgentSession {
       try {
         await activeScript.exports.restoreAll();
       } catch (_) {
-        // The target may already be gone.
+        // DAMが既に終了している場合は復元先がないため、そのまま解放を続けます。
       }
       try {
         await activeScript.unload();
@@ -154,6 +164,7 @@ export class AgentSession {
     }
   }
 
+  /** 順序固定フラグメントと対象マニフェストから、今回注入するAgentソースを構築します。 */
   #composeSource(manifest, runtimeConfig) {
     const identitySource = fs.readFileSync(
       path.join(this.helperDirectory, 'identity.js'),
@@ -173,6 +184,7 @@ export class AgentSession {
     });
   }
 
+  /** Fridaメッセージを検証し、Flutterへ公開するイベントだけを型別に転送します。 */
   #handleAgentMessage(message) {
     if (message.type === 'error') {
       this.protocol.log(`Frida agent error: ${message.description || 'unknown error'}`);
@@ -210,6 +222,7 @@ export class AgentSession {
     }
   }
 
+  /** URL登録要求をFlutterへ渡し、1.9秒以内に応答がなければ公式URL利用へ戻します。 */
   #beginPreparation(payload) {
     const requestId = String(payload.requestId || '');
     if (!requestId) return;

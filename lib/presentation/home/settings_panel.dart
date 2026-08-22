@@ -15,20 +15,25 @@ import '../../domain/app_settings.dart';
 import '../widgets/panel.dart';
 import '../widgets/setting_checkbox.dart';
 
+/// 4つの独立機能と、マイク遅延補正値を編集する設定パネルです。
 class SettingsPanel extends StatefulWidget {
+  /// 現在設定と更新操作を提供するコントローラーを受け取ります。
   const SettingsPanel({super.key, required this.controller});
 
   final AppController controller;
 
+  /// 入力中の補正値と遅延更新タイマーを管理する状態を生成します。
   @override
   State<SettingsPanel> createState() => _SettingsPanelState();
 }
 
+/// 数値入力中のカーソルを乱さず、確定値だけをコントローラーへ反映します。
 class _SettingsPanelState extends State<SettingsPanel> {
   late final TextEditingController _skipController;
   late final FocusNode _skipFocusNode;
   Timer? _skipDebounce;
 
+  /// 保存済み補正値を入力欄へ設定し、フォーカスと外部更新の監視を開始します。
   @override
   void initState() {
     super.initState();
@@ -39,6 +44,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     widget.controller.addListener(_syncSkipText);
   }
 
+  /// 保留中タイマーと監視を解除して、入力コントローラーを破棄します。
   @override
   void dispose() {
     _skipDebounce?.cancel();
@@ -50,16 +56,19 @@ class _SettingsPanelState extends State<SettingsPanel> {
     super.dispose();
   }
 
+  /// 入力欄からフォーカスが外れた時点で、補正値を即時確定します。
   void _handleSkipFocus() {
     if (!_skipFocusNode.hasFocus) _commitSkip(_skipController.text);
   }
 
+  /// 利用者が編集中でない場合だけ、外部で変わった設定値を入力欄へ同期します。
   void _syncSkipText() {
     if (_skipFocusNode.hasFocus) return;
     final value = widget.controller.settings.skipMs.toString();
     if (_skipController.text != value) _skipController.text = value;
   }
 
+  /// 連続入力ごとの保存を避け、最後の変更から350ミリ秒後に確定します。
   void _scheduleSkipUpdate(String value) {
     _skipDebounce?.cancel();
     _skipDebounce = Timer(
@@ -68,6 +77,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     );
   }
 
+  /// 数値を0～30000ミリ秒へ収め、変更がある場合だけ設定を更新します。
   void _commitSkip(String value) {
     _skipDebounce?.cancel();
     final parsed = int.tryParse(value);
@@ -85,10 +95,12 @@ class _SettingsPanelState extends State<SettingsPanel> {
     }
   }
 
+  /// GUIを待たせず、正規化と永続化をコントローラーへ委譲します。
   void _update(AppSettings settings) {
     unawaited(widget.controller.updateSettings(settings));
   }
 
+  /// 横幅に応じて1列または2列へ切り替わる設定項目を構築します。
   @override
   Widget build(BuildContext context) {
     final settings = widget.controller.settings;

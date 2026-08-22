@@ -10,9 +10,15 @@ import 'dart:math';
 
 import '../../domain/remote.dart';
 
+/// 検証済みSidecarコマンドを送信する関数型です。
 typedef SidecarCommandSender = void Function(Map<String, dynamic> command);
 
+/// Webリモコン要求とSidecar応答を、推測困難な相関IDで対応付けます。
+///
+/// 各操作の入力許可リスト・件数上限・タイムアウトをここで統一し、ブラウザから
+/// 任意のFridaコマンドを送れないようにします。
 class RemoteRequestBroker {
+  /// コマンド送信先とヘルパー稼働確認関数を受け取ります。
   RemoteRequestBroker({required this.send, required this.isRunning});
 
   static final RegExp _tokenPattern = RegExp(r'^[0-9A-Za-z_-]+$');
@@ -33,6 +39,7 @@ class RemoteRequestBroker {
   final Map<String, _PendingRequest<dynamic>> _pending =
       <String, _PendingRequest<dynamic>>{};
 
+  /// 検索語とモードを検証し、最大件数までの曲・歌手結果を取得します。
   Future<List<RemoteSong>> searchSongs(
     String query, {
     RemoteSearchMode mode = RemoteSearchMode.keyword,
@@ -56,6 +63,7 @@ class RemoteRequestBroker {
     );
   }
 
+  /// 操作トークンを検証し、キー・採点・演奏タイプを含む予約を実行します。
   Future<RemoteReservationResult> reserveSong(
     String token, {
     RemoteReservationOptions options = const RemoteReservationOptions(),
@@ -75,6 +83,7 @@ class RemoteRequestBroker {
     );
   }
 
+  /// 検索結果トークンから歌いだし・原曲キー・対応素材を取得します。
   Future<RemoteSongDetail> songDetail(String token) {
     _validateToken(token);
     return _request<RemoteSongDetail>(
@@ -91,6 +100,7 @@ class RemoteRequestBroker {
     );
   }
 
+  /// 検索結果トークンに対するお気に入り登録または解除を実行します。
   Future<RemoteFavoriteResult> updateFavorite(
     String token, {
     required bool favorite,
@@ -107,10 +117,12 @@ class RemoteRequestBroker {
     );
   }
 
+  /// DAMの現在状態を短いタイムアウトで取得します。
   Future<RemoteControlState> remoteState() async {
     return RemoteControlState.fromJson(await _command('remoteState'));
   }
 
+  /// 許可リストにある演奏操作だけをDAMへ送り、更新後状態を返します。
   Future<RemoteControlState> remoteControl(String action) async {
     const allowed = <String>{
       'pause',
@@ -131,10 +143,12 @@ class RemoteRequestBroker {
     );
   }
 
+  /// DAMの通常予約と割り込み予約をまとめた一覧を取得します。
   Future<List<RemoteQueueEntry>> remoteQueue() async {
     return _queueFromResult(await _command('remoteQueue'));
   }
 
+  /// 形式検証済みの予約トークンに対して、取消または順序変更を実行します。
   Future<List<RemoteQueueEntry>> remoteQueueAction(
     String action,
     String token,
@@ -152,6 +166,7 @@ class RemoteRequestBroker {
     );
   }
 
+  /// Sidecar応答を待機中要求へ配り、エラー応答も必ずCompleterを解放します。
   bool handleEvent(Map<String, dynamic> event) {
     final type = event['type']?.toString();
     if (!_resultTypes.contains(type)) return false;
@@ -167,6 +182,7 @@ class RemoteRequestBroker {
     return true;
   }
 
+  /// プロセス終了時などに、すべての待機中要求を同じ理由で失敗させます。
   void failAll(Object error) {
     for (final pending in _pending.values) {
       if (!pending.isCompleted) pending.completeError(error);
@@ -174,6 +190,7 @@ class RemoteRequestBroker {
     _pending.clear();
   }
 
+  /// 単一結果または一覧結果を共通形式へ変換する短時間コマンドを送ります。
   Future<Map<String, dynamic>> _command(
     String type, [
     Map<String, Object> fields = const <String, Object>{},
@@ -191,6 +208,7 @@ class RemoteRequestBroker {
     );
   }
 
+  /// 相関IDを発行して要求を送信し、応答・タイムアウト後に待機表から除去します。
   Future<T> _request<T>({
     required String type,
     required Map<String, Object> fields,
@@ -209,6 +227,7 @@ class RemoteRequestBroker {
     }
   }
 
+  /// 検索結果をドメイン型へ変換し、無効行と上限超過行を除外します。
   static List<RemoteSong> _decodeSongs(Map<String, dynamic> event) {
     final rows = <RemoteSong>[];
     final maximumRows = event['mode'] == 'favorites' ? 100 : 50;
@@ -224,6 +243,7 @@ class RemoteRequestBroker {
     return List<RemoteSong>.unmodifiable(rows);
   }
 
+  /// 予約一覧を検証し、DAMの最大表示件数までに制限します。
   static List<RemoteQueueEntry> _queueFromResult(Map<String, dynamic> result) {
     final rawRows = result['rows'];
     if (rawRows is! List) return const <RemoteQueueEntry>[];
@@ -237,27 +257,35 @@ class RemoteRequestBroker {
     return List<RemoteQueueEntry>.unmodifiable(rows);
   }
 
+  /// 検索結果トークンを、長さと許可文字の両方で検証します。
   static void _validateToken(String token) {
     if (token.isEmpty || token.length > 160 || !_tokenPattern.hasMatch(token)) {
       throw const FormatException('無効な検索結果です。もう一度検索してください');
     }
   }
 
+  /// 要求の衝突と推測を防ぐ128bit相関IDを生成します。
   String _randomId() {
     final bytes = List<int>.generate(16, (_) => _secureRandom.nextInt(256));
     return bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
   }
 }
 
+/// 1件のSidecar要求について、応答の型変換と完了状態を保持します。
 class _PendingRequest<T> {
+  /// 応答イベント専用のデコーダーを持つ未完了要求を生成します。
   _PendingRequest(this.decode);
 
   final T Function(Map<String, dynamic> event) decode;
   final Completer<T> _completer = Completer<T>();
 
+  /// 呼び出し側が応答を待機するFutureを返します。
   Future<T> get future => _completer.future;
+
+  /// 成功または失敗で既に完了したか返します。
   bool get isCompleted => _completer.isCompleted;
 
+  /// 応答を型変換して完了し、変換例外はスタック付きエラーとして返します。
   void complete(Map<String, dynamic> event) {
     try {
       _completer.complete(decode(event));
@@ -266,5 +294,6 @@ class _PendingRequest<T> {
     }
   }
 
+  /// プロセス終了や応答エラーで待機中要求を失敗として完了します。
   void completeError(Object error) => _completer.completeError(error);
 }

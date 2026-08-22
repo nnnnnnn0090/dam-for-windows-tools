@@ -17,6 +17,7 @@ import {
   targetManifestFilename,
 } from '../target_config.js';
 
+// 配信Originが認証情報なしのHTTPループバックだけに制限されることを検証します。
 test('accepts only an unauthenticated loopback HTTP origin', () => {
   assert.equal(normalizeMediaOrigin('http://127.0.0.1:8765'), 'http://127.0.0.1:8765');
   for (const value of [
@@ -29,6 +30,7 @@ test('accepts only an unauthenticated loopback HTTP origin', () => {
   }
 });
 
+// 対応マニフェストのプロセス名・版・SHA-256が厳密に検証されることを確認します。
 test('validates the exact target manifest identity', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dam-tools-target-'));
   const previousOrigin = process.env.DAM_TOOLS_MEDIA_ORIGIN;

@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Created: 2026-08-22
 
+# テスト済みFlutter成果物へ固定版Node・Frida・FFmpeg・VC++ランタイムを組み込み、配布ZIPを作成します。
+
 [CmdletBinding()]
 param(
   [switch]$SkipBuild,

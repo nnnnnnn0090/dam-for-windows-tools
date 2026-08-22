@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 
+/** 欠損や型違いを安全な初期値へ戻し、Agentへ渡す機能設定だけを抽出します。 */
 export function normalizeConfig(value) {
   const source = value && typeof value === 'object' ? value : {};
   return {

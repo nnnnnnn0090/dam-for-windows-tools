@@ -12,17 +12,21 @@ const commandResultTypes = Object.freeze({
   remoteQueueAction: 'remote-queue-action-result',
 });
 
+/** 任意の例外値から、プロトコルへ安全に載せられる短い文字列を取得します。 */
 function errorText(error) {
   return String(error && error.message ? error.message : error);
 }
 
+/** Flutterから許可されたコマンドを、接続中Agentの対応RPCへ振り分けます。 */
 export class CommandRouter {
+  /** Agentセッション、出力プロトコル、終了処理を明示的に受け取ります。 */
   constructor({ agentSession, protocol, shutdown }) {
     this.agentSession = agentSession;
     this.protocol = protocol;
     this.shutdown = shutdown;
   }
 
+  /** コマンド種別を許可リストで分岐し、未知の要求は実行せずログへ残します。 */
   async handle(command) {
     switch (command.type) {
       case 'config':
@@ -60,6 +64,7 @@ export class CommandRouter {
     }
   }
 
+  /** 検索要求をAgentへ転送し、未接続・RPC失敗時も相関ID付き結果を返します。 */
   async #remoteSearch(command) {
     const requestId = String(command.requestId || '');
     const query = String(command.query || '');
@@ -91,6 +96,7 @@ export class CommandRouter {
     }
   }
 
+  /** 曲詳細要求をAgentへ転送し、応答待機が残らないよう失敗も結果化します。 */
   async #remoteDetail(command) {
     const requestId = String(command.requestId || '');
     const script = this.agentSession.script;
@@ -116,6 +122,7 @@ export class CommandRouter {
     }
   }
 
+  /** 予約条件を明示的な値へ変換してAgentへ渡し、受理可否を返します。 */
   async #remoteReserve(command) {
     const requestId = String(command.requestId || '');
     const script = this.agentSession.script;
@@ -149,6 +156,7 @@ export class CommandRouter {
     }
   }
 
+  /** お気に入り登録・解除をAgentへ転送し、変更後状態を返します。 */
   async #remoteFavorite(command) {
     const requestId = String(command.requestId || '');
     const script = this.agentSession.script;
@@ -179,6 +187,7 @@ export class CommandRouter {
     }
   }
 
+  /** 状態・演奏・予約一覧の同期RPCを共通経路で呼び、型別応答を返します。 */
   async #remoteCommand(command) {
     const requestId = String(command.requestId || '');
     const resultType = commandResultTypes[command.type];

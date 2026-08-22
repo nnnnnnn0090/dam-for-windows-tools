@@ -7,19 +7,23 @@
 
 import readline from 'node:readline';
 
+/** Flutterとの標準入出力を、上限付きJSON Linesプロトコルとして管理します。 */
 export class HelperProtocol {
   static maxCommandLineLength = 64 * 1024;
 
   #lastStatusKey = '';
 
+  /** 1つの値をJSONへ符号化し、標準出力へ改行区切りで送信します。 */
   emit(value) {
     process.stdout.write(`${JSON.stringify(value)}\n`);
   }
 
+  /** 診断メッセージを型付きイベントとしてFlutterへ送信します。 */
   log(message) {
     this.emit({ type: 'log', message: String(message) });
   }
 
+  /** 同じ状態通知の連続送信を抑え、変化した接続状態だけを通知します。 */
   status(state, detail) {
     const normalizedDetail = String(detail || '');
     const key = `${state}\n${normalizedDetail}`;
@@ -28,6 +32,7 @@ export class HelperProtocol {
     this.emit({ type: 'status', state, detail: normalizedDetail });
   }
 
+  /** 標準入力と終了シグナルを監視し、不正・巨大コマンドを処理前に拒否します。 */
   listen(handleCommand, shutdown) {
     const input = readline.createInterface({ input: process.stdin });
     input.on('line', (line) => {

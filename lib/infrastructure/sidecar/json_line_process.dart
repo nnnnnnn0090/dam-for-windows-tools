@@ -9,10 +9,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// 1行のJSONオブジェクトを処理するコールバック型です。
 typedef JsonLineHandler = FutureOr<void> Function(Map<String, dynamic> value);
+
+/// 子プロセスの終了コードを処理するコールバック型です。
 typedef ProcessExitHandler = FutureOr<void> Function(int exitCode);
 
+/// Nodeヘルパーの起動・終了と、双方向JSON Linesストリームを管理します。
 class JsonLineProcess {
+  /// 実行条件と出力処理先を受け取り、未起動のプロセス管理器を生成します。
   JsonLineProcess({
     required this.executable,
     required this.entryPoint,
@@ -38,8 +43,10 @@ class JsonLineProcess {
   StreamSubscription<String>? _stderrSubscription;
   bool _stopping = false;
 
+  /// 管理対象プロセスが存在するか返します。
   bool get isRunning => _process != null;
 
+  /// 子プロセスを起動し、標準出力と標準エラーの非同期購読を開始します。
   Future<void> start() async {
     if (_process != null) return;
     _stopping = false;
@@ -72,6 +79,7 @@ class JsonLineProcess {
     );
   }
 
+  /// JSONオブジェクトを1行へ符号化して標準入力へ送り、送信失敗をログ化します。
   void send(Map<String, dynamic> value) {
     final process = _process;
     if (process == null) return;
@@ -82,6 +90,7 @@ class JsonLineProcess {
     }
   }
 
+  /// 正常終了要求を送り、3秒で応答しなければプロセスを強制終了します。
   Future<void> stop() async {
     final process = _process;
     if (process == null) return;
@@ -100,6 +109,7 @@ class JsonLineProcess {
     _process = null;
   }
 
+  /// 標準出力1行のサイズとJSON型を検証し、プロトコル外出力はログへ残します。
   void _handleLine(String line) {
     if (line.trim().isEmpty) return;
     if (line.length > maximumLineLength) {
@@ -120,7 +130,7 @@ class JsonLineProcess {
         return;
       }
     } on FormatException {
-      // Preserve non-protocol output as a diagnostic line.
+      // JSONではない標準出力も失わず、原因調査に使える診断行として残します。
     }
     onLog('Fridaヘルパー: $line');
   }

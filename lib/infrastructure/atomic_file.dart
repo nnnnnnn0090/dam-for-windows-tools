@@ -10,6 +10,10 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 
+/// 一時ファイルを既存ファイルへ置き換え、途中書き込みの露出を防ぎます。
+///
+/// Windowsでは`MoveFileExW`の置換と書き込み完了フラグを使い、設定や
+/// マニフェストが半端な内容で読み取られないようにします。
 Future<void> replaceFileAtomically(File source, File destination) async {
   await destination.parent.create(recursive: true);
   if (!Platform.isWindows) {
@@ -40,9 +44,12 @@ Future<void> replaceFileAtomically(File source, File destination) async {
   }
 }
 
+/// Win32の`MoveFileExW`を呼び出すためのネイティブ関数シグネチャです。
 typedef _MoveFileExWNative = Int32 Function(
   Pointer<Utf16>,
   Pointer<Utf16>,
   Uint32,
 );
+
+/// Dart側から`MoveFileExW`を呼び出すための関数シグネチャです。
 typedef _MoveFileExWDart = int Function(Pointer<Utf16>, Pointer<Utf16>, int);

@@ -10,6 +10,7 @@ import test from 'node:test';
 
 import { CommandRouter } from '../command_router.js';
 
+/** 送信イベントとAgent RPC呼出を記録できる、コマンドルーター用テスト構成を生成します。 */
 function fixture(script = null) {
   const emitted = [];
   const logs = [];
@@ -31,6 +32,7 @@ function fixture(script = null) {
   return { agentSession, emitted, logs, router };
 }
 
+// DAM未接続でも相関ID付きエラー応答が返ることを検証します。
 test('returns a correlated error when DAM is disconnected', async () => {
   const { emitted, router } = fixture();
   await router.handle({ type: 'remoteState', requestId: 'request-1' });
@@ -41,6 +43,7 @@ test('returns a correlated error when DAM is disconnected', async () => {
   }]);
 });
 
+// 各リモコンコマンドが接続中Agentの対応RPCへ渡ることを検証します。
 test('forwards remote commands to the current agent script', async () => {
   const calls = [];
   const script = {

@@ -5,15 +5,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 //
-// QR matrix construction is based on the QRCode for JavaScript algorithm.
+// QR行列の構築手順はQRCode for JavaScriptのアルゴリズムを参考にしています。
+// 次の行は原著作物のライセンス表示を正確に保つため、原文のまま記載します。
 // Copyright (c) 2009 Kazuhiko Arase. Licensed under the MIT License.
 
 import 'dart:convert';
 import 'dart:math' as math;
 
+/// UTF-8文字列を、誤り訂正レベルLのQRコード行列へ変換します。
 List<List<bool>> generateQrMatrix(String value) => _QrEncoder(value).encode();
 
+/// QRバージョン選択、機能パターン配置、データ配置を順に実行する符号器です。
 class _QrEncoder {
+  /// 入力文字列をUTF-8バイトへ固定して符号器を生成します。
   _QrEncoder(String value) : bytes = utf8.encode(value);
 
   final List<int> bytes;
@@ -39,6 +43,7 @@ class _QrEncoder {
     <_BlockSpec>[_BlockSpec(2, 86, 68)],
   ];
 
+  /// 入力長に合う最小バージョンを選び、完成した黒白モジュール行列を返します。
   List<List<bool>> encode() {
     version = _selectVersion();
     moduleCount = version * 4 + 17;
@@ -61,6 +66,7 @@ class _QrEncoder {
         .toList(growable: false);
   }
 
+  /// データ容量を超えない最小のQRバージョン1～6を選択します。
   int _selectVersion() {
     for (var candidate = 1; candidate <= _blockSpecs.length; candidate++) {
       final dataBytes = _blockSpecs[candidate - 1].fold<int>(
@@ -75,6 +81,7 @@ class _QrEncoder {
     throw ArgumentError.value(bytes.length, 'value', 'QRデータが長すぎます');
   }
 
+  /// モード・長さ・本文・パディング・誤り訂正をQR配置順のコード語へ変換します。
   List<int> _createCodewords() {
     final specs = _expandedSpecs();
     final totalDataBytes = specs.fold<int>(
@@ -130,6 +137,7 @@ class _QrEncoder {
     return result;
   }
 
+  /// 選択バージョンのブロック定義を、実際に処理する1ブロック単位へ展開します。
   List<_BlockSpec> _expandedSpecs() {
     final result = <_BlockSpec>[];
     for (final spec in _blockSpecs[version - 1]) {
@@ -140,6 +148,7 @@ class _QrEncoder {
     return result;
   }
 
+  /// 指定位置へ7×7のファインダーパターンと1セル分の分離領域を配置します。
   void _setupFinder(int row, int column) {
     for (var rowOffset = -1; rowOffset <= 7; rowOffset++) {
       final targetRow = row + rowOffset;
@@ -162,6 +171,7 @@ class _QrEncoder {
     }
   }
 
+  /// 選択バージョンに必要なアライメントパターンを未使用セルへ配置します。
   void _setupAlignment() {
     final positions = _alignmentPositions[version - 1];
     for (final row in positions) {
@@ -179,6 +189,7 @@ class _QrEncoder {
     }
   }
 
+  /// ファインダーパターン間へ交互のタイミングパターンを配置します。
   void _setupTiming() {
     for (var index = 8; index < moduleCount - 8; index++) {
       modules[index][6] ??= index.isEven;
@@ -186,6 +197,7 @@ class _QrEncoder {
     }
   }
 
+  /// 誤り訂正レベルLとマスク番号から、形式情報と固定暗モジュールを配置します。
   void _setupFormat(int mask) {
     final bits = _formatBits((1 << 3) | mask);
     for (var index = 0; index < 15; index++) {
@@ -207,6 +219,7 @@ class _QrEncoder {
     modules[moduleCount - 8][8] = true;
   }
 
+  /// BCH符号と固定マスクを用いて15ビットの形式情報を生成します。
   int _formatBits(int data) {
     const generator = 0x537;
     var remainder = data << 10;
@@ -216,6 +229,7 @@ class _QrEncoder {
     return ((data << 10) | remainder) ^ 0x5412;
   }
 
+  /// 正の整数を表現するために必要なビット数を返します。
   int _bitLength(int value) {
     var length = 0;
     while (value != 0) {
@@ -225,6 +239,7 @@ class _QrEncoder {
     return length;
   }
 
+  /// 予約済み機能セルを避け、右下から2列ずつデータビットを配置します。
   void _mapData(List<int> data, int mask) {
     var direction = -1;
     var row = moduleCount - 1;
@@ -258,7 +273,9 @@ class _QrEncoder {
   }
 }
 
+/// QR仕様のブロック数、総コード語数、データコード語数を表します。
 class _BlockSpec {
+  /// 1種類の誤り訂正ブロック構成を生成します。
   const _BlockSpec(this.count, this.totalCount, this.dataCount);
 
   final int count;
@@ -266,11 +283,14 @@ class _BlockSpec {
   final int dataCount;
 }
 
+/// 可変長ビット列を保持し、QRコード語へ変換する作業用バッファです。
 class _BitBuffer {
   final List<bool> _bits = <bool>[];
 
+  /// 現在格納しているビット数を返します。
   int get length => _bits.length;
 
+  /// 先頭ビットから8ビットずつまとめたバイト列を返します。
   List<int> get bytes {
     final result = List<int>.filled((_bits.length + 7) ~/ 8, 0);
     for (var index = 0; index < _bits.length; index++) {
@@ -279,19 +299,23 @@ class _BitBuffer {
     return result;
   }
 
+  /// 整数の上位ビットから指定長だけバッファへ追加します。
   void put(int value, int length) {
     for (var index = length - 1; index >= 0; index--) {
       putBit(((value >> index) & 1) == 1);
     }
   }
 
+  /// 1ビットを現在の末尾へ追加します。
   void putBit(bool value) => _bits.add(value);
 }
 
+/// GF(256)上のリード・ソロモン誤り訂正コードを生成します。
 class _ReedSolomon {
   static final List<int> _exponents = _createExponents();
   static final List<int> _logarithms = _createLogarithms();
 
+  /// データコード語から指定長の誤り訂正コード語を生成します。
   static List<int> encode(List<int> data, int errorLength) {
     var generator = <int>[1];
     for (var index = 0; index < errorLength; index++) {
@@ -319,11 +343,13 @@ class _ReedSolomon {
     return message.sublist(data.length);
   }
 
+  /// 指数表と対数表を使ってGF(256)上の乗算を行います。
   static int _multiply(int left, int right) {
     if (left == 0 || right == 0) return 0;
     return _exponents[_logarithms[left] + _logarithms[right]];
   }
 
+  /// 原始多項式0x11dから、周期を複製した指数表を生成します。
   static List<int> _createExponents() {
     final result = List<int>.filled(512, 0);
     var value = 1;
@@ -338,6 +364,7 @@ class _ReedSolomon {
     return result;
   }
 
+  /// 指数表を逆引きする対数表を生成します。
   static List<int> _createLogarithms() {
     final result = List<int>.filled(256, 0);
     for (var index = 0; index < 255; index++) {

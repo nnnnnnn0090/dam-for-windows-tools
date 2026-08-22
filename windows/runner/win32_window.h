@@ -14,96 +14,92 @@
 #include <memory>
 #include <string>
 
-// A class abstraction for a high DPI-aware Win32 Window. Intended to be
-// inherited from by classes that wish to specialize with custom
-// rendering and input handling
+/// 高DPI対応のWin32トップレベルウィンドウを抽象化します。
+///
+/// 描画や入力を追加する派生クラスが、ハンドル管理と共通メッセージ処理を
+/// 再実装しなくてよいようにします。
 class Win32Window {
  public:
+  /// ウィンドウ左上の論理座標を表します。
   struct Point {
     unsigned int x;
     unsigned int y;
+    /// X・Y座標から位置を生成します。
     Point(unsigned int x, unsigned int y) : x(x), y(y) {}
   };
 
+  /// ウィンドウの論理幅と高さを表します。
   struct Size {
     unsigned int width;
     unsigned int height;
+    /// 幅と高さからサイズを生成します。
     Size(unsigned int width, unsigned int height)
         : width(width), height(height) {}
   };
 
+  /// 未作成のウィンドウを生成し、アクティブ数へ登録します。
   Win32Window();
+  /// OS資源を破棄し、アクティブ数から登録解除します。
   virtual ~Win32Window();
 
-  // Creates a win32 window with |title| that is positioned and sized using
-  // |origin| and |size|. New windows are created on the default monitor. Window
-  // sizes are specified to the OS in physical pixels, hence to ensure a
-  // consistent size this function will scale the inputted width and height as
-  // as appropriate for the default monitor. The window is invisible until
-  // |Show| is called. Returns true if the window was created successfully.
+  /// 既定モニターのDPIで論理位置・サイズを物理ピクセルへ変換し、非表示で作成します。
+  /// [Show]が呼ばれるまで表示せず、作成と派生初期化が成功した場合だけtrueを返します。
   bool Create(const std::wstring& title, const Point& origin, const Size& size);
 
-  // Show the current window. Returns true if the window was successfully shown.
+  /// 現在のウィンドウを通常状態で表示し、成功したか返します。
   bool Show();
 
-  // Release OS resources associated with window.
+  /// 子クラスの終了処理後に、関連するOSウィンドウ資源を解放します。
   void Destroy();
 
-  // Inserts |content| into the window tree.
+  /// 指定HWNDを子ウィンドウとして組み込み、クライアント領域へ合わせます。
   void SetChildContent(HWND content);
 
-  // Returns the backing Window handle to enable clients to set icon and other
-  // window properties. Returns nullptr if the window has been destroyed.
+  /// アイコンなどの設定に使うHWNDを返し、破棄済みならnullptrを返します。
   HWND GetHandle();
 
-  // If true, closing this window will quit the application.
+  /// ウィンドウ破棄時にアプリのメッセージループも終了するか設定します。
   void SetQuitOnClose(bool quit_on_close);
 
-  // Return a RECT representing the bounds of the current client area.
+  /// 現在のクライアント領域をRECTとして返します。
   RECT GetClientArea();
 
  protected:
-  // Processes and route salient window messages for mouse handling,
-  // size change and DPI. Delegates handling of these to member overloads that
-  // inheriting classes can handle.
+  /// DPI・サイズ・フォーカス・テーマの共通メッセージを処理し、残りをOSへ委譲します。
   virtual LRESULT MessageHandler(HWND window,
                                  UINT const message,
                                  WPARAM const wparam,
                                  LPARAM const lparam) noexcept;
 
-  // Called when CreateAndShow is called, allowing subclass window-related
-  // setup. Subclasses should return false if setup fails.
+  /// HWND作成後に派生クラス固有の初期化を行い、失敗時はfalseを返します。
   virtual bool OnCreate();
 
-  // Called when Destroy is called.
+  /// HWND破棄前に派生クラス固有の解放処理を行います。
   virtual void OnDestroy();
 
  private:
   friend class WindowClassRegistrar;
 
-  // OS callback called by message pump. Handles the WM_NCCREATE message which
-  // is passed when the non-client area is being created and enables automatic
-  // non-client DPI scaling so that the non-client area automatically
-  // responds to changes in DPI. All other messages are handled by
-  // MessageHandler.
+  /// OSメッセージ入口でWM_NCCREATE時にインスタンスとDPI処理を関連付けます。
+  /// 以後のメッセージは対応する[Win32Window]の[MessageHandler]へ転送します。
   static LRESULT CALLBACK WndProc(HWND const window,
                                   UINT const message,
                                   WPARAM const wparam,
                                   LPARAM const lparam) noexcept;
 
-  // Retrieves a class instance pointer for |window|
+  /// HWNDのユーザーデータから対応するクラスインスタンスを取得します。
   static Win32Window* GetThisFromHandle(HWND const window) noexcept;
 
-  // Update the window frame's theme to match the system theme.
+  /// Windowsのアプリテーマ設定に合わせてウィンドウ枠の暗色表示を更新します。
   static void UpdateTheme(HWND const window);
 
   bool quit_on_close_ = false;
 
-  // window handle for top level window.
+  // トップレベルウィンドウのハンドルです。
   HWND window_handle_ = nullptr;
 
-  // window handle for hosted content.
+  // 組み込んだFlutter子ウィンドウのハンドルです。
   HWND child_content_ = nullptr;
 };
 
-#endif  // RUNNER_WIN32_WINDOW_H_
+#endif  // RUNNER_WIN32_WINDOW_H_ の終端

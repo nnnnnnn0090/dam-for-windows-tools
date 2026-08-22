@@ -6,6 +6,7 @@
 // Created: 2026-08-23
 
 rpc.exports = {
+  /** 全期待命令列を検証してから、設定・再生・採点・リモコンの各機能を有効化します。 */
   initialize(next) {
     if (initialized) return true;
     validateHooks();
@@ -18,11 +19,13 @@ rpc.exports = {
     emitLog('検証済み再生経路・曲情報・採点表現監視を有効化しました');
     return true;
   },
+  /** 初期化済みAgentへ機能設定を反映します。 */
   updateConfig(next) {
     if (!initialized) return false;
     applyConfig(next);
     return true;
   },
+  /** 保留要求とUIタスクを破棄し、このAgentが適用したパッチを復元します。 */
   restoreAll() {
     pendingRemoteSearch = null;
     pendingRemoteDetail = null;
@@ -33,10 +36,11 @@ rpc.exports = {
     remoteSearchRows.clear();
     finishScoringSession();
     restorePatches();
-    // Function replacements stay active until script unload so an in-flight
-    // remote response cannot fall through to DAM's UI during shutdown.
+    // 関数置換はスクリプト破棄まで維持し、終了中の遅延応答がDAM本体UIへ
+    // すり抜けてモーダルや画面遷移を起こさないようにします。
     return true;
   },
+  /** 検索モードと入力を検証し、DAM画面の一時状態を復元しながら非表示検索を開始します。 */
   remoteSearch(requestId, query, mode) {
     if (!initialized) throw new Error('agent is not initialized');
     if (!damRequestContextReady()) throw new Error('DAMが検索可能になるまでお待ちください');
@@ -96,29 +100,28 @@ rpc.exports = {
         needsQuery ? ['pointer'] : [],
       );
       const transientState = descriptor.transientUiState || catalog.transientUiState;
+      // 検索前のシーン関連メモリを範囲ごとに退避します。
       const snapshots = transientState.map((range) => {
         const address = rva(range.rva);
         const length = parseInteger(range.length);
         return { address, bytes: address.readByteArray(length) };
       });
       try {
+        /** 検索語が必要なモードだけ引数付きで解析済み関数を呼びます。 */
         const invokeSearch = () => {
           if (needsQuery) nativeSearch(buffer);
           else nativeSearch();
         };
-        // DAM's history entry begins with the same two UI-feedback calls as
-        // its on-screen history button. A remote read must not make a button
-        // sound or animate DAM, so omit those calls only for this synchronous
-        // invocation and restore their original instructions immediately.
+        // DAM履歴関数の先頭には本体ボタンと同じ効果音・アニメーション呼び出しが
+        // あります。リモコン読取時の同期呼出中だけ省き、直後に命令列を復元します。
         if (normalizedMode === 'history') {
           withTemporaryCodePatches(descriptor.remoteOnlyPreludePatches, invokeSearch);
         } else {
           invokeSearch();
         }
       } finally {
-        // The request owns its query and callbacks after this entry returns.
-        // Restore all scene-related globals immediately so a remote lookup
-        // cannot move or prime DAM's on-screen search scene.
+        // 関数復帰後は要求側が検索語とコールバックを保持します。シーン関連状態は
+        // 直ちに戻し、リモコン検索がDAM本体の検索画面を準備・遷移させないようにします。
         for (const snapshot of snapshots) {
           snapshot.address.writeByteArray(snapshot.bytes);
         }
@@ -131,6 +134,7 @@ rpc.exports = {
       throw error;
     });
   },
+  /** 検索結果トークンを照合し、本体UIを動かさず曲詳細取得を開始します。 */
   remoteDetail(requestId, token) {
     if (!initialized) throw new Error('agent is not initialized');
     if (!damRequestContextReady()) {
@@ -164,6 +168,7 @@ rpc.exports = {
       throw error;
     });
   },
+  /** 検索結果と予約条件を検証し、曲詳細取得後に直接予約キューへ追加します。 */
   remoteReserve(requestId, token, options) {
     if (!initialized) throw new Error('agent is not initialized');
     if (!damRequestContextReady()) throw new Error('DAMが予約可能になるまでお待ちください');
@@ -213,6 +218,7 @@ rpc.exports = {
       throw error;
     });
   },
+  /** 検索結果を照合し、登録または一覧上の削除としてお気に入り操作を開始します。 */
   remoteFavorite(requestId, token, action) {
     if (!initialized) throw new Error('agent is not initialized');
     if (!damRequestContextReady()) throw new Error('DAMが操作可能になるまでお待ちください');
@@ -275,10 +281,12 @@ rpc.exports = {
       throw error;
     });
   },
+  /** 現在の演奏・曲・キー・採点状態を同期的に返します。 */
   remoteState() {
     if (!initialized) throw new Error('agent is not initialized');
     return currentRemoteState();
   },
+  /** 許可済み演奏操作をDAMメインスレッドで実行します。 */
   remoteControl(action) {
     if (!initialized) throw new Error('agent is not initialized');
     const normalized = String(action == null ? '' : action);
@@ -287,10 +295,12 @@ rpc.exports = {
       () => performRemoteControl(normalized),
     );
   },
+  /** 現在の通常予約と割り込み予約を読み取り専用で返します。 */
   remoteQueue() {
     if (!initialized) throw new Error('agent is not initialized');
     return currentRemoteQueue();
   },
+  /** 予約行トークンを照合し、取消または順序変更をDAMメインスレッドで実行します。 */
   remoteQueueAction(action, token) {
     if (!initialized) throw new Error('agent is not initialized');
     const normalizedAction = String(action == null ? '' : action);

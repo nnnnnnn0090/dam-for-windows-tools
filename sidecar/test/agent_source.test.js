@@ -11,6 +11,7 @@ import test from 'node:test';
 
 import { agentFragmentNames, composeAgentSource } from '../agent_source.js';
 
+// Agent結合後にES Module構文が残らず、Fridaの古典スクリプトとして解析できることを検証します。
 test('composes a classic Frida script without ES module exports', () => {
   const fragmentDirectory = new URL('../agent/', import.meta.url);
   const actualFragmentNames = fs
@@ -39,6 +40,7 @@ test('composes a classic Frida script without ES module exports', () => {
   assert.match(source, /function extractVideoAssetId\(value\)/);
 });
 
+// DAM履歴が検証済み一覧経路と曲詳細経路を使用することを検証します。
 test('DAM play history uses its verified catalog and list-detail path', () => {
   const manifest = JSON.parse(fs.readFileSync(
     new URL('../supported-dam.json', import.meta.url),

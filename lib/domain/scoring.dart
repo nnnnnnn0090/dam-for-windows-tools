@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 
+/// DAMが通知する採点技法IDと、GUIに表示する日本語名の対応表です。
 const List<String> scoringTechniqueNames = <String>[
   'しゃくり',
   '大しゃくり',
@@ -52,6 +53,7 @@ const List<String> scoringTechniqueNames = <String>[
   '歌い回しなし',
 ];
 
+/// GUIで常時表示する採点技法を、重複するビブラートIDをまとめた順で定義します。
 const List<int> canonicalScoringTechniqueIds = <int>[
   0,
   1,
@@ -91,19 +93,24 @@ const List<int> canonicalScoringTechniqueIds = <int>[
   43,
 ];
 
+/// 種類別に分かれたビブラートIDを、共通表示用IDへまとめます。
 int canonicalScoringTechniqueId(int id) => id >= 30 && id <= 38 ? 30 : id;
 
+/// 採点技法IDを表示名へ変換し、未知のIDは「不明」として扱います。
 String scoringTechniqueName(int id) {
   if (id < 0 || id >= scoringTechniqueNames.length) return '不明';
   return scoringTechniqueNames[id];
 }
 
+/// 採点技法IDに対応する同梱アイコンのアセットパスを返します。
 String scoringTechniqueAsset(int id) {
   final canonical = canonicalScoringTechniqueId(id);
   return 'assets/scoring/technique_${canonical.toString().padLeft(2, '0')}.png';
 }
 
+/// 再生中にDAMから届いた1回分の歌唱技法検出を表します。
 class ScoringEvent {
+  /// 技法ID、加算回数、DAM側の検出時刻からイベントを生成します。
   const ScoringEvent({
     required this.techniqueId,
     required this.value,
@@ -114,5 +121,6 @@ class ScoringEvent {
   final int value;
   final int timestamp;
 
+  /// 技法IDに対応する、GUI表示用の日本語名を返します。
   String get name => scoringTechniqueName(techniqueId);
 }

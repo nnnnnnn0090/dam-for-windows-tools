@@ -10,6 +10,7 @@ import fs from 'node:fs';
 
 import * as frida from 'frida';
 
+/** 実行ファイルをストリームで読み、比較用の小文字SHA-256を計算します。 */
 export function sha256(filePath) {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
@@ -20,6 +21,7 @@ export function sha256(filePath) {
   });
 }
 
+/** ローカルプロセスから対象名を完全一致で探し、最も早いPIDの1件を返します。 */
 export async function findTarget(processName) {
   const device = await frida.getLocalDevice();
   const processes = await device.enumerateProcesses({ scope: 'full' });

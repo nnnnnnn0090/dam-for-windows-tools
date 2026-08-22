@@ -5,6 +5,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Created: 2026-08-23
 
+# 配布ビルドで共有する安全なパス計算、署名、Nodeパッケージコピーを提供します。
+
+<# 基準ディレクトリ内の対象だけを相対パスへ変換し、外部パスを拒否します。 #>
 function Get-RelativePathCompat {
   param(
     [Parameter(Mandatory = $true)][string]$BasePath,
@@ -19,6 +22,7 @@ function Get-RelativePathCompat {
   return $targetFullPath.Substring($baseFullPath.Length)
 }
 
+<# 明示設定、PATH、Windows SDKの順にx64 signtool.exeを探します。 #>
 function Find-SignTool {
   if ($env:DAM_TOOLS_SIGNTOOL) {
     $configured = [IO.Path]::GetFullPath($env:DAM_TOOLS_SIGNTOOL)
@@ -36,6 +40,7 @@ function Find-SignTool {
   return $null
 }
 
+<# 指定証明書で配布バイナリへSHA-256署名とRFC 3161タイムスタンプを付け、再検証します。 #>
 function Invoke-CodeSign {
   param(
     [Parameter(Mandatory = $true)][string]$SignTool,
@@ -55,6 +60,7 @@ function Invoke-CodeSign {
   }
 }
 
+<# Nodeパッケージから実行時に必要な許可済みエントリーだけを配布先へコピーします。 #>
 function Copy-RuntimePackage {
   param(
     [Parameter(Mandatory = $true)][string]$SourceModules,

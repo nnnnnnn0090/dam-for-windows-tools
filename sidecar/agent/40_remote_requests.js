@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 
+/** 保留中の予約要求を1回だけ完了し、確定した曲情報と結果を返します。 */
 function finishRemoteReservation(accepted, message) {
   const pending = pendingRemoteReservation;
   if (!pending) return;
@@ -20,6 +21,7 @@ function finishRemoteReservation(accepted, message) {
   });
 }
 
+/** 保留中のお気に入り要求を1回だけ完了し、変更後状態を返します。 */
 function finishRemoteFavorite(accepted, message, favorite) {
   const pending = pendingRemoteFavorite;
   if (!pending) return;
@@ -36,6 +38,7 @@ function finishRemoteFavorite(accepted, message, favorite) {
   });
 }
 
+/** DAM曲詳細構造体を読み、歌いだし・原曲キー・対応演奏タイプを返します。 */
 function finishRemoteDetail(requestInfo, errorMessage = '') {
   const pending = pendingRemoteDetail;
   if (!pending) return;
@@ -96,6 +99,7 @@ function finishRemoteDetail(requestInfo, errorMessage = '') {
   }
 }
 
+/** 解析済みの候補から、曲詳細要求に必要なDAMコンテキストが利用可能か確認します。 */
 function damRequestContextReady() {
   const descriptor = DAM_TARGET_MANIFEST.hooks.remoteReservation;
   for (const rvaValue of [
@@ -115,6 +119,7 @@ function damRequestContextReady() {
   return false;
 }
 
+/** 曲の対応フラグを検査し、予約へ書き込む演奏タイプ値を選択します。 */
 function selectPlayType(requestInfo, requested) {
   const descriptor = DAM_TARGET_MANIFEST.hooks.remoteReservation;
   const guideVocalAvailable = requestInfo
@@ -134,6 +139,7 @@ function selectPlayType(requestInfo, requested) {
   return artistVideoAvailable ? 2 : 0;
 }
 
+/** 個別予約またはグローバル設定から、DAMへ書き込む採点コンテンツ値を選択します。 */
 function selectScoringContent(requestInfo, requested) {
   const descriptor = DAM_TARGET_MANIFEST.hooks.globalScoring;
   const enabled = requested || currentGlobalScoring();
@@ -143,6 +149,7 @@ function selectScoringContent(requestInfo, requested) {
     : descriptor.disabledValue;
 }
 
+/** 読み取り済み曲詳細から、UIを介さず予約キューへ渡す最小構造体を構築します。 */
 function buildPreparedRequestInfo(requestInfo, descriptor, options) {
   if (requestInfo.add(parseInteger(descriptor.requestValidOffset)).readU8() === 0) {
     throw new Error('DAMの曲詳細が予約可能な状態ではありません');
@@ -151,9 +158,8 @@ function buildPreparedRequestInfo(requestInfo, descriptor, options) {
   const prepared = Memory.alloc(size);
   prepared.writeByteArray(new Uint8Array(size));
 
-  // FUN_1400eb710 builds the queue-facing 0x46e-byte record from the larger
-  // DkkMusicRequestInfo. Reproduce that data mapping without touching any
-  // RequestWindow globals or callbacks.
+  // FUN_1400eb710がDkkMusicRequestInfoから作る0x46eバイトの予約用構造だけを
+  // 再現し、RequestWindowのグローバル状態やUIコールバックには触れません。
   const selectedKey = options.originalKey
     ? requestInfo.add(parseInteger(descriptor.originalKeyOffset)).readS32()
     : options.key;
@@ -203,6 +209,7 @@ function buildPreparedRequestInfo(requestInfo, descriptor, options) {
   return prepared;
 }
 
+/** 作成済み構造体を、通常予約または割り込み予約の解析済み関数へ渡します。 */
 function enqueueRemoteReservation(requestInfo) {
   if (!pendingRemoteReservation) return false;
   const descriptor = DAM_TARGET_MANIFEST.hooks.remoteReservation;
@@ -231,6 +238,7 @@ function enqueueRemoteReservation(requestInfo) {
   return (enqueue(NULL, prepared, count, payload) & 0xff) !== 0;
 }
 
+/** 指定命令だけを実行中に一時置換し、成功・例外を問わず直ちに原本へ戻します。 */
 function withTemporaryCodePatches(descriptors, action) {
   const restored = [];
   try {
@@ -263,6 +271,7 @@ function withTemporaryCodePatches(descriptors, action) {
   }
 }
 
+/** 曲詳細からお気に入りキーを一時設定し、DAMの登録処理だけを開始します。 */
 function startRemoteFavoriteRegistration(requestInfo) {
   const favorites = DAM_TARGET_MANIFEST.hooks.remoteFavorites;
   const reservation = DAM_TARGET_MANIFEST.hooks.remoteReservation;
@@ -290,6 +299,7 @@ function startRemoteFavoriteRegistration(requestInfo) {
   }
 }
 
+/** DAMメインスレッドで曲詳細を要求し、画面遷移用の一時状態を呼出前後で復元します。 */
 function requestRemoteSongDetail(row, listRow, actionName) {
   const reservation = DAM_TARGET_MANIFEST.hooks.remoteReservation;
   const requestDescriptor = listRow
@@ -307,6 +317,7 @@ function requestRemoteSongDetail(row, listRow, actionName) {
     const transientUiState = listRow
       ? requestDescriptor.detailTransientUiState
       : reservation.transientUiState;
+    // 復元対象の各メモリ範囲を、呼び出し前のバイト列として退避します。
     const snapshots = transientUiState.map((range) => {
       const address = rva(range.rva);
       const length = parseInteger(range.length);

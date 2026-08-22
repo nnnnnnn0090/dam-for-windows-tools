@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:dam_for_windows_tools/infrastructure/remote/remote_access_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// 家庭内IPv4の許可範囲と、端末別レート制限を検証します。
 void main() {
   test('accepts loopback and RFC1918 IPv4 clients only', () {
     for (final address in <String>[

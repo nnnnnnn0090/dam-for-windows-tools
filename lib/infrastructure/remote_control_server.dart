@@ -18,7 +18,12 @@ import 'remote_page_provider.dart';
 
 export 'remote/remote_handlers.dart';
 
+/// 同一LANのスマートフォンへ、検索・予約・演奏操作のWeb画面を提供します。
+///
+/// 推測困難なセッショントークン、プライベートIP制限、同一Origin検証、レート制限を
+/// すべて通過した要求だけをSidecar操作へ渡します。
 class RemoteControlServer {
+  /// DAM操作ハンドラーと待受条件を受け取り、未起動のリモコンサーバーを生成します。
   RemoteControlServer({
     required RemoteSongSearch search,
     required RemoteSongDetailReader readSongDetail,
@@ -67,9 +72,13 @@ class RemoteControlServer {
   String? _url;
   int _activeRequests = 0;
 
+  /// HTTPサーバーがLAN要求を受け付けているか返します。
   bool get isRunning => _server != null;
+
+  /// QRコードとブラウザ起動に使う、セッショントークン付きURLを返します。
   String? get url => _url;
 
+  /// Web画面を先に展開し、最適なLANアドレスでアクセスURLを確定して待受を開始します。
   Future<void> start() async {
     if (_server != null) return;
     await _pageProvider.load();
@@ -97,6 +106,7 @@ class RemoteControlServer {
     );
   }
 
+  /// HTTP受付を終了し、公開URLと端末別レート記録を破棄します。
   Future<void> stop() async {
     final server = _server;
     _server = null;
@@ -105,6 +115,9 @@ class RemoteControlServer {
     if (server != null) await server.close(force: true);
   }
 
+  /// 同時要求数、接続元、レートを検査してから個別ルーティングを実行します。
+  ///
+  /// 既知の入力エラーとDAMタイムアウトを、ブラウザが扱えるHTTPエラーへ変換します。
   Future<void> _serve(HttpRequest request) async {
     if (_activeRequests >= maximumConcurrentRequests) {
       await RemoteHttp.problem(request, 503, '処理が混み合っています');
@@ -136,6 +149,7 @@ class RemoteControlServer {
     }
   }
 
+  /// セッショントークン付き画面と、POST専用APIだけを許可して振り分けます。
   Future<void> _route(HttpRequest request) async {
     final pagePath = '/$_sessionToken/';
     final path = request.uri.path;
@@ -162,6 +176,7 @@ class RemoteControlServer {
     );
   }
 
+  /// QRコードURLを推測されにくくする256bitセッショントークンを生成します。
   static String _randomHex(int byteCount) {
     final random = Random.secure();
     return List<int>.generate(

@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Created: 2026-08-22
 
+# 配布フォルダの必須物・禁止物・ハッシュ・署名・外部依存閉包をリリース前に検証します。
+
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$ReleaseRoot,

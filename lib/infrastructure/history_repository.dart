@@ -9,7 +9,9 @@ import '../domain/tracks.dart';
 import 'app_paths.dart';
 import 'json_file_store.dart';
 
+/// 権利上保存可能な3項目だけを、上限付きJSON履歴として永続化します。
 class HistoryRepository {
+  /// 保存先と、テストで差し替え可能なJSON入出力実装を受け取ります。
   HistoryRepository(this.paths, [this._files = const JsonFileStore()]);
 
   static const int _maximumBytes = 2 * 1024 * 1024;
@@ -18,6 +20,7 @@ class HistoryRepository {
   final AppPaths paths;
   final JsonFileStore _files;
 
+  /// サイズ・件数・動画ID重複を検証しながら保存済み履歴を読み込みます。
   Future<List<TrackRecord>> load() async {
     final decoded = await _files.read(
       paths.historyFile,
@@ -37,6 +40,7 @@ class HistoryRepository {
     return records;
   }
 
+  /// 最大件数までの履歴を、URLやファイルパスを含めず原子的に保存します。
   Future<void> save(Iterable<TrackRecord> records) => _files.write(
     paths.historyFile,
     records
@@ -45,6 +49,7 @@ class HistoryRepository {
         .toList(growable: false),
   );
 
+  /// 履歴ファイルだけを削除し、設定と差し替え動画は保持します。
   Future<void> clear() async {
     if (await paths.historyFile.exists()) await paths.historyFile.delete();
   }

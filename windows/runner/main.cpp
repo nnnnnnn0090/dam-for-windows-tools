@@ -13,16 +13,15 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+/// COMとFlutterエンジンを初期化し、1280×720のメインウィンドウを起動します。
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  // Attach to console when present (e.g., 'flutter run') or create a
-  // new console when running with a debugger.
+  // `flutter run`では親コンソールへ接続し、デバッガー実行時だけ新規作成します。
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
     CreateAndAttachConsole();
   }
 
-  // Initialize COM, so that it is available for use in the library and/or
-  // plugins.
+  // Flutterプラグインが利用できるよう、UIスレッドをSTAとしてCOM初期化します。
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");

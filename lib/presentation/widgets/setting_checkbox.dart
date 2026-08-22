@@ -7,7 +7,9 @@
 
 import 'package:flutter/material.dart';
 
+/// 機能名だけでなく用途説明も常時読める、設定用チェック項目です。
 class SettingCheckbox extends StatelessWidget {
+  /// ラベル、説明、現在値、変更通知先を受け取ります。
   const SettingCheckbox({
     super.key,
     required this.label,
@@ -21,6 +23,7 @@ class SettingCheckbox extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  /// 行全体を押下可能にし、狭い幅では説明を2行までに収めて表示します。
   @override
   Widget build(BuildContext context) {
     return InkWell(
