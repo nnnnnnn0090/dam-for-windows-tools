@@ -6,115 +6,63 @@
 // Created: 2026-08-22
 
 import 'dart:async';
-import 'dart:collection';
-import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
-import '../domain/models.dart';
-import '../infrastructure/app_paths.dart';
-import '../infrastructure/manual_video_store.dart';
-import '../infrastructure/media_server.dart';
-import '../infrastructure/remote_control_server.dart';
-import '../infrastructure/sidecar_service.dart';
-import '../infrastructure/storage.dart';
+import '../domain/app_settings.dart';
+import '../domain/playback.dart';
+import '../domain/scoring.dart';
+import '../domain/tracks.dart';
+import '../domain/value_objects.dart';
+import 'app_runtime.dart';
+import 'diagnostic_log.dart';
+import 'scoring_session_state.dart';
+import 'track_history_state.dart';
 
 class AppController extends ChangeNotifier {
   AppController();
 
-  AppPaths? paths;
-  AppStorage? storage;
-  ManualVideoStore? manualVideoStore;
-  LocalMediaServer? server;
-  RemoteControlServer? remoteControlServer;
-  SidecarService? sidecar;
+  AppRuntime? _runtime;
   AppSettings settings = const AppSettings();
 
-  final LinkedHashMap<String, TrackView> _tracks =
-      LinkedHashMap<String, TrackView>();
-  final Map<String, MetadataCandidate> _metadataById =
-      <String, MetadataCandidate>{};
-  final Map<String, Set<String>> _aliasesByVideoId = <String, Set<String>>{};
-  final LinkedHashMap<int, int> _scoringCounts = LinkedHashMap<int, int>();
-  final List<ScoringEvent> _scoringEvents = <ScoringEvent>[];
-  final List<String> logs = <String>[];
+  final TrackHistoryState _history = TrackHistoryState();
+  final ScoringSessionState _scoring = ScoringSessionState();
+  final DiagnosticLog _diagnostics = DiagnosticLog();
 
   bool initialized = false;
   bool shuttingDown = false;
   String connectionCode = 'initializing';
   String connectionState = '初期化中';
   String? fatalError;
-  bool scoringActive = false;
+  bool get scoringActive => _scoring.active;
 
-  List<TrackView> get tracks =>
-      _tracks.values.toList(growable: false).reversed.toList();
-  bool get serverRunning => server?.isRunning == true;
-  String? get remoteControlUrl => remoteControlServer?.url;
-  Map<int, int> get scoringCounts =>
-      UnmodifiableMapView<int, int>(_scoringCounts);
-  List<ScoringEvent> get scoringEvents =>
-      List<ScoringEvent>.unmodifiable(_scoringEvents);
-  ScoringEvent? get lastScoringEvent =>
-      _scoringEvents.isEmpty ? null : _scoringEvents.last;
+  List<TrackView> get tracks => _history.views;
+  bool get serverRunning => _runtime?.serverRunning == true;
+  String? get remoteControlUrl => _runtime?.remoteControlUrl;
+  Map<int, int> get scoringCounts => _scoring.counts;
+  List<ScoringEvent> get scoringEvents => _scoring.events;
+  ScoringEvent? get lastScoringEvent => _scoring.lastEvent;
+  List<String> get logs => _diagnostics.entries;
 
   Future<void> initialize() async {
     try {
-      final resolvedPaths = await AppPaths.create();
-      paths = resolvedPaths;
-      final appStorage = AppStorage(resolvedPaths);
-      storage = appStorage;
-      settings = await appStorage.loadSettings();
-      for (final record in await appStorage.loadHistory()) {
-        _tracks[record.videoId] = TrackView(record: record);
-      }
-
-      final videoStore = ManualVideoStore(resolvedPaths);
-      manualVideoStore = videoStore;
-      final storedVideos = await videoStore.load();
-      final mediaServer = LocalMediaServer(
-        paths: resolvedPaths,
+      final startup = await AppRuntime.create(
+        onEvent: _handleSidecarEvent,
         onStage: markStage,
         onLog: addLog,
       );
-      server = mediaServer;
-      mediaServer.restoreManualSources(storedVideos);
-      await mediaServer.start();
-
-      final helper = SidecarService(
-        paths: resolvedPaths,
-        onEvent: _handleSidecarEvent,
-        onLog: addLog,
-      );
-      sidecar = helper;
-      await helper.start(settings);
-      final remote = RemoteControlServer(
-        search: (query, mode) => helper.searchSongs(query, mode: mode),
-        readSongDetail: helper.songDetail,
-        reserve: (token, options) =>
-            helper.reserveSong(token, options: options),
-        favorite: (token, favorite) =>
-            helper.updateFavorite(token, favorite: favorite),
-        readState: helper.remoteState,
-        controlPlayback: helper.remoteControl,
-        readQueue: helper.remoteQueue,
-        controlQueue: helper.remoteQueueAction,
-        readHistory: () =>
-            helper.searchSongs('', mode: RemoteSearchMode.history),
-        onLog: addLog,
-      );
-      remoteControlServer = remote;
-      try {
-        await remote.start();
-      } on Object catch (error) {
-        addLog('リモコンサーバーを起動できません: $error');
-      }
+      _runtime = startup.runtime;
+      settings = startup.settings;
+      _history.restore(startup.history);
+      await startup.runtime.start(settings);
       initialized = true;
       connectionCode = 'monitoring';
       connectionState = 'DAMを監視中';
       addLog('${AppConfig.productName}を起動しました');
     } on Object catch (error, stackTrace) {
+      await _runtime?.shutdown();
+      _runtime = null;
       fatalError = error.toString();
       connectionCode = 'failed';
       connectionState = '初期化失敗';
@@ -124,23 +72,18 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> updateSettings(AppSettings next) async {
-    settings = next.copyWith(skipMs: next.skipMs.clamp(0, 30000));
+    settings = next.normalized();
     notifyListeners();
-    await storage?.saveSettings(settings);
-    await sidecar?.updateConfig(settings);
+    await _runtime?.updateSettings(settings);
   }
 
   Future<void> reconnect() async {
-    sidecar?.reconnect();
+    _runtime?.reconnect();
   }
 
   Future<void> openRemoteControl() async {
-    final url = remoteControlUrl;
-    if (url == null) return;
     try {
-      await Process.start('explorer.exe', <String>[
-        url,
-      ], mode: ProcessStartMode.detached);
+      await _runtime?.openRemoteControl();
     } on Object catch (error) {
       addLog('リモコンをブラウザで開けません: $error');
     }
@@ -151,16 +94,9 @@ class AppController extends ChangeNotifier {
       _handleSidecarEvent(event);
 
   Future<void> chooseManualVideo(String videoId) async {
-    final result = await FilePicker.pickFile(
-      dialogTitle: '$videoId の差し替え動画を選択',
-      type: FileType.custom,
-      allowedExtensions: ManualVideoStore.supportedExtensions,
-    );
-    final selected = result?.path;
-    if (selected == null) return;
     try {
-      final stored = await manualVideoStore!.import(videoId, File(selected));
-      await server?.setManualSource(videoId, stored);
+      final changed = await _runtime?.chooseManualVideo(videoId) == true;
+      if (!changed) return;
       addLog('[$videoId] 差し替え動画をデータフォルダへ保存しました');
       notifyListeners();
     } on Object catch (error) {
@@ -171,8 +107,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> clearManualVideo(String videoId) async {
     try {
-      await manualVideoStore?.remove(videoId);
-      server?.clearManualSource(videoId);
+      await _runtime?.clearManualVideo(videoId);
       addLog('[$videoId] 保存済みの差し替え動画を削除しました');
       notifyListeners();
     } on Object catch (error) {
@@ -181,35 +116,28 @@ class AppController extends ChangeNotifier {
   }
 
   bool hasManualVideo(String videoId) =>
-      server?.hasManualSource(videoId) == true;
+      _runtime?.hasManualVideo(videoId) == true;
 
   Future<void> clearHistory() async {
-    _tracks.clear();
-    _aliasesByVideoId.clear();
-    await storage?.clearHistory();
+    _history.clear();
+    await _runtime?.clearHistory();
     addLog('曲情報の履歴を消去しました');
     notifyListeners();
   }
 
   void clearScoringSession() {
-    _scoringCounts.clear();
-    _scoringEvents.clear();
+    _scoring.clear();
     notifyListeners();
   }
 
   void markStage(String videoId, PlaybackStage stage, String detail) {
-    final current = _tracks[videoId];
-    if (current != null) {
-      _tracks[videoId] = current.copyWith(stage: stage);
-    }
+    _history.markStage(videoId, stage);
     addLog('[$videoId] ${stage.label}: $detail');
     notifyListeners();
   }
 
   void addLog(String message) {
-    final timestamp = DateTime.now().toIso8601String().substring(11, 23);
-    logs.add('$timestamp $message');
-    if (logs.length > 500) logs.removeRange(0, logs.length - 500);
+    _diagnostics.add(message);
     notifyListeners();
   }
 
@@ -217,34 +145,7 @@ class AppController extends ChangeNotifier {
     if (shuttingDown) return;
     shuttingDown = true;
     notifyListeners();
-    Object? firstError;
-    try {
-      await remoteControlServer?.stop();
-    } on Object catch (error) {
-      firstError = error;
-      addLog('リモコンサーバーの終了に失敗しました: $error');
-    }
-    try {
-      await sidecar?.stop();
-    } on Object catch (error) {
-      firstError = error;
-      addLog('Fridaヘルパーの終了に失敗しました: $error');
-    }
-    try {
-      await server?.stop();
-    } on Object catch (error) {
-      firstError ??= error;
-      addLog('ローカル配信サーバーの終了に失敗しました: $error');
-    }
-    try {
-      await paths?.disposeSession();
-    } on Object catch (error) {
-      firstError ??= error;
-      addLog('一時データの削除に失敗しました: $error');
-    }
-    if (firstError == null) {
-      addLog('パッチを復元し、セッション一時データを削除しました');
-    }
+    await _runtime?.shutdown();
   }
 
   Future<void> _handleSidecarEvent(Map<String, dynamic> event) async {
@@ -256,7 +157,7 @@ class AppController extends ChangeNotifier {
         connectionCode = event['state']?.toString() ?? 'unknown';
         connectionState =
             event['detail']?.toString() ?? event['state']?.toString() ?? '状態不明';
-        if (connectionCode != 'attached') scoringActive = false;
+        if (connectionCode != 'attached') _scoring.deactivate();
         notifyListeners();
       case 'metadata':
         _acceptMetadata(event);
@@ -283,9 +184,7 @@ class AppController extends ChangeNotifier {
   }
 
   void _beginScoringSession() {
-    _scoringCounts.clear();
-    _scoringEvents.clear();
-    scoringActive = true;
+    _scoring.begin();
     addLog('採点セッションを開始しました');
   }
 
@@ -299,50 +198,30 @@ class AppController extends ChangeNotifier {
     final technique = rawTechnique.toInt();
     final value = rawValue.toInt();
     final timestamp = rawTimestamp.toInt();
-    if (technique < 0 ||
-        technique >= scoringTechniqueNames.length ||
-        value <= 0 ||
-        timestamp < 0) {
-      return;
+    if (_scoring.add(
+      techniqueId: technique,
+      value: value,
+      timestamp: timestamp,
+    )) {
+      notifyListeners();
     }
-    final canonical = canonicalScoringTechniqueId(technique);
-    _scoringCounts[canonical] = (_scoringCounts[canonical] ?? 0) + 1;
-    _scoringEvents.add(
-      ScoringEvent(techniqueId: technique, value: value, timestamp: timestamp),
-    );
-    if (_scoringEvents.length > 200) {
-      _scoringEvents.removeRange(0, _scoringEvents.length - 200);
-    }
-    scoringActive = true;
-    notifyListeners();
   }
 
   void _finishScoringSession() {
-    if (!scoringActive) return;
-    scoringActive = false;
+    if (!_scoring.active) return;
+    _scoring.deactivate();
     addLog('採点セッションを終了しました');
   }
 
   void _acceptMetadata(Map<String, dynamic> event) {
     final rawCandidates = event['candidates'];
     if (rawCandidates is! List) return;
-    var changed = false;
+    final candidates = <MetadataCandidate>[];
     for (final raw in rawCandidates) {
       if (raw is! Map<String, dynamic>) continue;
-      final candidate = MetadataCandidate.fromJson(raw);
-      if (candidate.ids.isEmpty ||
-          (candidate.artist.isEmpty && candidate.title.isEmpty)) {
-        continue;
-      }
-      for (final id in candidate.ids) {
-        _metadataById[id] = candidate;
-      }
-      for (final entry in _aliasesByVideoId.entries) {
-        if (candidate.ids.any(entry.value.contains)) {
-          changed = _updateTrackMetadata(entry.key, candidate) || changed;
-        }
-      }
+      candidates.add(MetadataCandidate.fromJson(raw));
     }
+    final changed = _history.acceptMetadata(candidates);
     if (changed) unawaited(_persistHistory());
     notifyListeners();
   }
@@ -353,24 +232,7 @@ class AppController extends ChangeNotifier {
       addLog('再生を検知しましたが動画IDを確定できませんでした');
       return;
     }
-    final aliases = <String>{videoId};
-    _aliasesByVideoId[videoId] = aliases;
-    MetadataCandidate? metadata;
-    for (final id in aliases) {
-      metadata = _metadataById[id];
-      if (metadata != null) break;
-    }
-    final existing = _tracks[videoId]?.record;
-    final record = TrackRecord(
-      videoId: videoId,
-      artist: metadata?.artist.isNotEmpty == true
-          ? metadata!.artist
-          : existing?.artist ?? '',
-      title: metadata?.title.isNotEmpty == true
-          ? metadata!.title
-          : existing?.title ?? '',
-    );
-    _tracks[videoId] = TrackView(record: record, stage: PlaybackStage.detected);
+    _history.registerPlayback(videoId);
     addLog('[$videoId] 最終プレイヤー経路で再生を検知しました');
     await _persistHistory();
     notifyListeners();
@@ -379,16 +241,17 @@ class AppController extends ChangeNotifier {
   Future<void> _prepareReplacement(Map<String, dynamic> event) async {
     final requestId = event['requestId']?.toString() ?? '';
     final descriptor = PlaybackDescriptor.fromJson(event);
-    if (requestId.isEmpty || server == null) return;
+    final runtime = _runtime;
+    if (requestId.isEmpty || runtime == null) return;
     try {
-      final registration = await server!.register(descriptor, settings);
-      sidecar?.respondToPreparation(
+      final registration = await runtime.registerMedia(descriptor, settings);
+      runtime.respondToPreparation(
         requestId: requestId,
         accepted: true,
         localUrl: registration.localUrl,
       );
     } on Object catch (error) {
-      sidecar?.respondToPreparation(
+      runtime.respondToPreparation(
         requestId: requestId,
         accepted: false,
         error: error.toString(),
@@ -400,23 +263,8 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  bool _updateTrackMetadata(String videoId, MetadataCandidate metadata) {
-    final current = _tracks[videoId];
-    if (current == null) return false;
-    final next = current.record.copyWith(
-      artist: metadata.artist.isNotEmpty ? metadata.artist : null,
-      title: metadata.title.isNotEmpty ? metadata.title : null,
-    );
-    if (next.artist == current.record.artist &&
-        next.title == current.record.title) {
-      return false;
-    }
-    _tracks[videoId] = current.copyWith(record: next);
-    return true;
-  }
-
   Future<void> _persistHistory() async {
-    await storage?.saveHistory(_tracks.values.map((view) => view.record));
+    await _runtime?.saveHistory(_history.records);
   }
 
   static String _safeId(String value) {

@@ -1,0 +1,26 @@
+// Project: DAM for Windows Tools
+// File: helper_config.test.js
+// Copyright (c) 2026 nnnnnnn0090. All rights reserved.
+// Author: nnnnnnn0090
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Created: 2026-08-23
+
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { normalizeConfig } from '../helper_config.js';
+
+test('normalizes helper configuration to secure enabled defaults', () => {
+  assert.deepEqual(normalizeConfig(null), {
+    disableModuleCheck: true,
+    disableForegroundCheck: true,
+    replaceVideoUrls: true,
+    scoringEnabled: true,
+  });
+  assert.deepEqual(normalizeConfig({ replaceVideoUrls: false }), {
+    disableModuleCheck: true,
+    disableForegroundCheck: true,
+    replaceVideoUrls: false,
+    scoringEnabled: true,
+  });
+});

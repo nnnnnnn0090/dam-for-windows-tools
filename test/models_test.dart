@@ -5,7 +5,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-22
 
-import 'package:dam_for_windows_tools/domain/models.dart';
+import 'package:dam_for_windows_tools/domain/app_settings.dart';
+import 'package:dam_for_windows_tools/domain/playback.dart';
+import 'package:dam_for_windows_tools/domain/remote_song.dart';
+import 'package:dam_for_windows_tools/domain/tracks.dart';
+import 'package:dam_for_windows_tools/domain/value_objects.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

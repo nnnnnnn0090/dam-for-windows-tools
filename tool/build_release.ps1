@@ -17,77 +17,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'msvc_runtime.ps1')
 
-function Get-RelativePathCompat {
-  param(
-    [Parameter(Mandatory = $true)][string]$BasePath,
-    [Parameter(Mandatory = $true)][string]$TargetPath
-  )
-
-  $baseFullPath = [IO.Path]::GetFullPath($BasePath).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
-  $targetFullPath = [IO.Path]::GetFullPath($TargetPath)
-  if (-not $targetFullPath.StartsWith($baseFullPath, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Path is outside the expected base directory: $targetFullPath"
-  }
-  return $targetFullPath.Substring($baseFullPath.Length)
-}
-
-function Find-SignTool {
-  if ($env:DAM_TOOLS_SIGNTOOL) {
-    $configured = [IO.Path]::GetFullPath($env:DAM_TOOLS_SIGNTOOL)
-    if (Test-Path -LiteralPath $configured -PathType Leaf) { return $configured }
-    throw "DAM_TOOLS_SIGNTOOL does not exist: $configured"
-  }
-  $command = Get-Command signtool.exe -ErrorAction SilentlyContinue
-  if ($command) { return $command.Source }
-  $kitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-  $candidate = Get-ChildItem -LiteralPath $kitsRoot -Filter signtool.exe -Recurse -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.DirectoryName -match '[\\/]x64$' } |
-    Sort-Object FullName -Descending |
-    Select-Object -First 1
-  if ($candidate) { return $candidate.FullName }
-  return $null
-}
-
-function Invoke-CodeSign {
-  param(
-    [Parameter(Mandatory = $true)][string]$SignTool,
-    [Parameter(Mandatory = $true)][string]$Thumbprint,
-    [Parameter(Mandatory = $true)][string[]]$Files,
-    [Parameter(Mandatory = $true)][string]$Rfc3161Url
-  )
-  $normalizedThumbprint = $Thumbprint -replace '\s', ''
-  if ($normalizedThumbprint -notmatch '^[0-9A-Fa-f]{40}$') {
-    throw 'The signing certificate thumbprint must be 40 hexadecimal characters'
-  }
-  foreach ($file in $Files) {
-    & $SignTool sign /sha1 $normalizedThumbprint /fd SHA256 /tr $Rfc3161Url /td SHA256 $file
-    if ($LASTEXITCODE -ne 0) { throw "Code signing failed: $file" }
-    $signature = Get-AuthenticodeSignature -LiteralPath $file
-    if ($signature.Status -ne 'Valid') { throw "Signature verification failed: $file ($($signature.Status))" }
-  }
-}
-
-function Copy-RuntimePackage {
-  param(
-    [Parameter(Mandatory = $true)][string]$SourceModules,
-    [Parameter(Mandatory = $true)][string]$DestinationModules,
-    [Parameter(Mandatory = $true)][string]$PackageName,
-    [Parameter(Mandatory = $true)][string[]]$Entries
-  )
-  $sourcePackage = Join-Path $SourceModules $PackageName
-  $destinationPackage = Join-Path $DestinationModules $PackageName
-  New-Item -ItemType Directory -Force -Path $destinationPackage | Out-Null
-  foreach ($entry in $Entries) {
-    $source = Join-Path $sourcePackage $entry
-    if (-not (Test-Path -LiteralPath $source)) {
-      throw "Required runtime package entry is missing: $PackageName/$entry"
-    }
-    $destination = Join-Path $destinationPackage $entry
-    $destinationParent = Split-Path -Parent $destination
-    New-Item -ItemType Directory -Force -Path $destinationParent | Out-Null
-    Copy-Item -LiteralPath $source -Destination $destination -Recurse
-  }
-}
+. (Join-Path $PSScriptRoot 'release_helpers.ps1')
 
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $releaseName = 'DAMforWindowsTools'
@@ -206,13 +136,17 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
     & $nodeExe --check (Join-Path $projectRoot 'sidecar\main.js')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar main syntax check failed' }
+    foreach ($sidecarModule in @('agent_session.js','command_router.js','helper_config.js','helper_protocol.js','target_discovery.js')) {
+      & $nodeExe --check (Join-Path $projectRoot "sidecar\$sidecarModule")
+      if ($LASTEXITCODE -ne 0) { throw "sidecar module syntax check failed: $sidecarModule" }
+    }
     & $nodeExe --check (Join-Path $projectRoot 'sidecar\target_config.js')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar target config syntax check failed' }
     & $nodeExe --check (Join-Path $projectRoot 'sidecar\identity.js')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar identity syntax check failed' }
     & $nodeExe --check (Join-Path $projectRoot 'sidecar\agent_source.js')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar agent source syntax check failed' }
-    & $nodeExe --check (Join-Path $projectRoot 'sidecar\agent.js')
+    & $nodeExe (Join-Path $projectRoot 'sidecar\check_agent_syntax.js')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar agent syntax check failed' }
     & (Join-Path $nodeCache 'npm.cmd') test --prefix (Join-Path $projectRoot 'sidecar')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar tests failed' }
@@ -263,10 +197,13 @@ try {
   Copy-Item -LiteralPath $nodeExe -Destination (Join-Path $runtime 'node.exe')
   Copy-Item -LiteralPath $ffmpegExe -Destination (Join-Path $runtime 'ffmpeg.exe')
   Copy-Item -LiteralPath (Join-Path $projectRoot 'sidecar\main.js') -Destination $helper
+  foreach ($sidecarModule in @('agent_session.js','command_router.js','helper_config.js','helper_protocol.js','target_discovery.js')) {
+    Copy-Item -LiteralPath (Join-Path $projectRoot "sidecar\$sidecarModule") -Destination $helper
+  }
   Copy-Item -LiteralPath (Join-Path $projectRoot 'sidecar\target_config.js') -Destination $helper
   Copy-Item -LiteralPath (Join-Path $projectRoot 'sidecar\identity.js') -Destination $helper
   Copy-Item -LiteralPath (Join-Path $projectRoot 'sidecar\agent_source.js') -Destination $helper
-  Copy-Item -LiteralPath (Join-Path $projectRoot 'sidecar\agent.js') -Destination $helper
+  Copy-Item -LiteralPath (Join-Path $projectRoot 'sidecar\agent') -Destination $helper -Recurse
   Copy-Item -LiteralPath (Join-Path $projectRoot 'sidecar\package.json') -Destination $helper
   Copy-Item -LiteralPath (Join-Path $projectRoot "sidecar\$manifestName") -Destination $helper
 

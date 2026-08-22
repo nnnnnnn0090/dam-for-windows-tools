@@ -12,15 +12,30 @@ function injectableModuleSource(source) {
   );
 }
 
+export const agentFragmentNames = Object.freeze([
+  '00_runtime.js',
+  '10_playback.js',
+  '20_remote_playback.js',
+  '30_scoring.js',
+  '40_remote_requests.js',
+  '50_remote_hooks.js',
+  '60_validation.js',
+  '70_rpc_exports.js',
+]);
+
 export function composeAgentSource({
   manifest,
   runtimeConfig,
   identitySource,
-  agentSource,
+  agentSources,
 }) {
+  if (!Array.isArray(agentSources) || agentSources.length === 0) {
+    throw new TypeError('agentSources must contain at least one fragment');
+  }
   return (
     `const DAM_TARGET_MANIFEST = ${JSON.stringify(manifest)};\n` +
     `const DAM_RUNTIME_CONFIG = ${JSON.stringify(runtimeConfig)};\n` +
-    `${injectableModuleSource(identitySource)}\n${injectableModuleSource(agentSource)}`
+    `${injectableModuleSource(identitySource)}\n` +
+    agentSources.map(injectableModuleSource).join('\n')
   );
 }

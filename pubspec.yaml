@@ -62,6 +62,8 @@ flutter:
   assets:
     - assets/scoring/
     - assets/remote/index.html
+    - assets/remote/styles.css
+    - assets/remote/app.js
     - LICENSE
     - LEGAL_NOTICE.md
     - THIRD_PARTY_NOTICES.md

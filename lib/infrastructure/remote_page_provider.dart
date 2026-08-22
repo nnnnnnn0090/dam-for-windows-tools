@@ -15,11 +15,18 @@ class RemotePageProvider {
   Future<String> load() => _page ??= _load();
 
   Future<String> _load() async {
-    final template = await rootBundle.loadString(AppConfig.remotePageAsset);
+    final assets = await Future.wait<String>(<Future<String>>[
+      rootBundle.loadString(AppConfig.remotePageAsset),
+      rootBundle.loadString(AppConfig.remoteStyleAsset),
+      rootBundle.loadString(AppConfig.remoteScriptAsset),
+    ]);
+    final template = assets[0];
     final page = template
+        .replaceAll('{{REMOTE_STYLES}}', assets[1])
+        .replaceAll('{{REMOTE_SCRIPT}}', assets[2])
         .replaceAll('{{PRODUCT_NAME}}', AppConfig.productName)
         .replaceAll('{{REMOTE_NAME}}', AppConfig.remoteName);
-    if (page.contains('{{PRODUCT_NAME}}') || page.contains('{{REMOTE_NAME}}')) {
+    if (RegExp(r'\{\{[A-Z_]+\}\}').hasMatch(page)) {
       throw StateError('リモコン画面のテンプレート展開に失敗しました');
     }
     return page;

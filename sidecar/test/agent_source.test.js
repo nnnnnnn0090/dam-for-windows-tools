@@ -9,22 +9,29 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 
-import { composeAgentSource } from '../agent_source.js';
+import { agentFragmentNames, composeAgentSource } from '../agent_source.js';
 
 test('composes a classic Frida script without ES module exports', () => {
+  const fragmentDirectory = new URL('../agent/', import.meta.url);
+  const actualFragmentNames = fs
+    .readdirSync(fragmentDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+    .map((entry) => entry.name)
+    .sort();
+  assert.deepEqual(actualFragmentNames, [...agentFragmentNames].sort());
+
   const identitySource = fs.readFileSync(
     new URL('../identity.js', import.meta.url),
     'utf8',
   );
-  const agentSource = fs.readFileSync(
-    new URL('../agent.js', import.meta.url),
-    'utf8',
+  const agentSources = agentFragmentNames.map((filename) =>
+    fs.readFileSync(new URL(`../agent/${filename}`, import.meta.url), 'utf8'),
   );
   const source = composeAgentSource({
     manifest: { target: { processName: 'DKKaraokeWindows.exe' } },
     runtimeConfig: { mediaOrigin: 'http://127.0.0.1:8765' },
     identitySource,
-    agentSource,
+    agentSources,
   });
 
   assert.doesNotMatch(source, /^(?:\s*)export\s/m);

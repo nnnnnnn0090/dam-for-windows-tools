@@ -8,7 +8,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dam_for_windows_tools/domain/models.dart';
+import 'package:dam_for_windows_tools/domain/remote.dart';
 import 'package:dam_for_windows_tools/infrastructure/remote_control_server.dart';
 import 'package:dam_for_windows_tools/infrastructure/remote_page_provider.dart';
 import 'package:flutter_test/flutter_test.dart';

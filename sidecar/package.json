@@ -1,4 +1,7 @@
 {
+  "project": "DAM for Windows Tools",
+  "file": "package.json",
+  "copyright": "Copyright (c) 2026 nnnnnnn0090. All rights reserved.",
   "name": "dam-for-windows-tools-helper",
   "author": "nnnnnnn0090",
   "license": "GPL-3.0-or-later",
@@ -10,7 +13,7 @@
     "node": "24.19.0"
   },
   "scripts": {
-    "check": "node --check main.js && node --check identity.js && node --check agent_source.js && node --check target_config.js && node --check agent.js",
+    "check": "node --check main.js && node --check agent_session.js && node --check command_router.js && node --check helper_config.js && node --check helper_protocol.js && node --check target_discovery.js && node --check identity.js && node --check agent_source.js && node --check target_config.js && node check_agent_syntax.js",
     "test": "node --test"
   },
   "dependencies": {

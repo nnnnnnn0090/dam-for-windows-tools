@@ -41,7 +41,23 @@ $requiredFiles = @(
   'runtime\node.exe',
   'runtime\ffmpeg.exe',
   'runtime\helper\main.js',
+  'runtime\helper\agent_session.js',
   'runtime\helper\agent_source.js',
+  'runtime\helper\command_router.js',
+  'runtime\helper\helper_config.js',
+  'runtime\helper\helper_protocol.js',
+  'runtime\helper\identity.js',
+  'runtime\helper\package.json',
+  'runtime\helper\target_config.js',
+  'runtime\helper\target_discovery.js',
+  'runtime\helper\agent\00_runtime.js',
+  'runtime\helper\agent\10_playback.js',
+  'runtime\helper\agent\20_remote_playback.js',
+  'runtime\helper\agent\30_scoring.js',
+  'runtime\helper\agent\40_remote_requests.js',
+  'runtime\helper\agent\50_remote_hooks.js',
+  'runtime\helper\agent\60_validation.js',
+  'runtime\helper\agent\70_rpc_exports.js',
   'runtime\helper\supported-dam.json'
 )
 $msvcRuntimeFiles = [string[]]@($releaseConfig.msvcRuntimeFiles)
@@ -101,6 +117,17 @@ if ($LASTEXITCODE -ne 0 -or $nodeVersion -ne "v$($releaseConfig.nodeVersion)") {
 $nodeSignature = Get-AuthenticodeSignature -LiteralPath $node
 if ($nodeSignature.Status -ne 'Valid') {
   throw "Invalid upstream Node.js signature: $($nodeSignature.Status)"
+}
+$sidecarSources = @(
+  'main.js','agent_session.js','agent_source.js','command_router.js',
+  'helper_config.js','helper_protocol.js','identity.js','target_config.js','target_discovery.js',
+  'agent\00_runtime.js','agent\10_playback.js','agent\20_remote_playback.js',
+  'agent\30_scoring.js','agent\40_remote_requests.js','agent\50_remote_hooks.js',
+  'agent\60_validation.js','agent\70_rpc_exports.js'
+)
+foreach ($sidecarSource in $sidecarSources) {
+  & $node --check (Join-Path $release "runtime\helper\$sidecarSource")
+  if ($LASTEXITCODE -ne 0) { throw "Packaged sidecar syntax check failed: $sidecarSource" }
 }
 
 $buildInfo = Get-Content -LiteralPath (Join-Path $release 'BUILD_INFO.json') -Raw | ConvertFrom-Json

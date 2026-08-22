@@ -10,7 +10,7 @@ import 'dart:math';
 
 import 'package:path/path.dart' as p;
 
-import '../domain/models.dart';
+import '../domain/value_objects.dart';
 import 'app_paths.dart';
 import 'atomic_file.dart';
 
