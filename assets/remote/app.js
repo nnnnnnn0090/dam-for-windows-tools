@@ -8,7 +8,7 @@
 /** IDから画面要素を取得する省略関数です。 */
 const $=id=>document.getElementById(id);
 let state={connected:false,playing:false,paused:false,key:0,damScoring:false,title:'',artist:'',videoId:'',confirmation:null};
-let activeView='search',searchMode='keyword',searchSequence=0,searchRequest=Promise.resolve(),reserveKey=0,originalKey=false,scoringRequested=false,playType='standard',busy=false,toastTimer=0,currentSongs=[],selectedSong=null,selectedDetail=null,detailOrigin='search',detailLoading=false,detailSequence=0,historyBusy=false;
+let activeView='search',searchMode='keyword',searchSequence=0,searchRequest=Promise.resolve(),stateRequest=null,reserveKey=0,originalKey=false,scoringRequested=false,playType='standard',busy=false,toastTimer=0,currentSongs=[],selectedSong=null,selectedDetail=null,detailOrigin='search',detailLoading=false,detailSequence=0,historyBusy=false;
 /** 同一OriginのPOST APIを呼び、失敗応答を利用者向け例外へ変換します。 */
 async function api(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});let data={};try{data=await response.json()}catch(_){}if(!response.ok)throw new Error(data.error||'通信に失敗しました');return data}
 /** textContentだけで安全に文字を設定するDOM要素を生成します。 */
@@ -21,8 +21,10 @@ function keyText(k){return k>0?`♯${k}`:k<0?`♭${-k}`:'0'}
 function renderConfirmation(confirmation){const active=!!confirmation&&typeof confirmation.message==='string';const panel=$('damConfirmation');panel.hidden=!active;if(!active)return;$('damConfirmationMessage').textContent=confirmation.message||'DAM本体で選択を待っています';const yes=$('damConfirmationYes'),no=$('damConfirmationNo');yes.classList.toggle('selected',confirmation.selected==='yes');no.classList.toggle('selected',confirmation.selected==='no');yes.disabled=no.disabled=busy}
 /** 最新DAM状態をヘッダー・演奏操作・確認画面へ一括反映します。 */
 function renderState(next){state=next;$('lamp').classList.toggle('on',next.connected);$('connection').textContent=next.connected?'DAM接続中':'DAM未接続';const playing=next.playing===true;$('playmark').textContent=playing?(next.paused?'Ⅱ':'▶'):'■';$('nowtitle').textContent=playing?(next.title||'曲名取得中'):'再生中の曲はありません';$('nowartist').textContent=playing?(next.artist||next.videoId||''):'{{PRODUCT_NAME}}';$('keymini').textContent=keyText(next.key||0);$('controlTitle').textContent=playing?(next.title||'曲名取得中'):'再生中の曲はありません';$('controlArtist').textContent=playing?(next.artist||next.videoId||''):'曲を再生すると操作できます';$('keyReset').textContent=keyText(next.key||0);const pause=$('pauseButton');pause.dataset.control=next.paused?'resume':'pause';pause.textContent=next.paused?'▶　再開':'Ⅱ　一時停止';const damScore=$('damScoring');damScore.classList.toggle('on',next.damScoring===true);damScore.querySelector('span').textContent=next.damScoring?'ON':'OFF';damScore.disabled=!next.connected||busy;document.querySelectorAll('[data-control]').forEach(e=>e.disabled=!playing||busy);renderConfirmation(next.confirmation)}
-/** DAM状態を再取得し、静かな更新では通信エラー通知を抑えます。 */
-async function refreshState(silent=true){try{renderState(await api('api/state'))}catch(e){renderState({...state,connected:false,confirmation:null});if(!silent)toast(e.message)}}
+/** DAM状態の取得を常に1本へ束ね、応答待ち中の監視要求を積み重ねません。 */
+function refreshState(silent=true){if(stateRequest)return stateRequest;stateRequest=api('api/state').then(renderState).catch(e=>{renderState({...state,connected:false,confirmation:null});if(!silent)toast(e.message)}).finally(()=>{stateRequest=null});return stateRequest}
+/** 前回の状態取得が完了してから次回を予約し、Sidecarの遅延時にも503を防ぎます。 */
+async function pollState(){if(!busy)await refreshState(true);setTimeout(pollState,1000)}
 /** 下部ナビゲーションの表示先を切り替え、一覧画面は移動時に再取得します。 */
 function switchView(name){activeView=name;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('active',e.id===`view-${name}`));document.querySelectorAll('.nav button').forEach(e=>e.classList.toggle('active',e.dataset.view===name));if(name==='queue')refreshQueue();if(name==='history')refreshHistory()}
 document.querySelectorAll('.nav button').forEach(e=>e.onclick=()=>switchView(e.dataset.view));
@@ -69,9 +71,9 @@ async function openHistorySong(row){if(historyBusy||!row||!row.token)return;hist
 /** DAM本体由来の履歴を再取得し、定期更新時は通信エラー通知を抑えます。 */
 async function refreshHistory(silent=false){try{const data=await api('api/history');renderHistory(Array.isArray(data.rows)?data.rows:[])}catch(e){if(!silent)toast(e.message)}}
 $('refreshHistory').onclick=()=>refreshHistory();
-$('damScoring').onclick=async()=>{if(!state.connected||busy)return;const wanted=state.damScoring!==true;busy=true;renderState(state);try{renderState(await api('api/control',{action:wanted?'scoringOn':'scoringOff'}));toast(`ホームの採点を${wanted?'ON':'OFF'}にしました`)}catch(e){toast(e.message)}finally{busy=false;refreshState(true)}};
-document.querySelectorAll('[data-control]').forEach(button=>button.onclick=async()=>{const action=button.dataset.control;if(action==='stop'&&!confirm('現在の演奏を停止しますか？'))return;busy=true;renderState(state);try{renderState(await api('api/control',{action}));toast(action==='restart'?'最初から歌いなおします':action==='stop'?'演奏を停止しました':action==='pause'?'一時停止しました':action==='resume'?'再開しました':'キーを変更しました')}catch(e){toast(e.message)}finally{busy=false;refreshState(true)}});
+$('damScoring').onclick=async()=>{if(!state.connected||busy)return;const wanted=state.damScoring!==true;busy=true;renderState(state);try{renderState(await api('api/control',{action:wanted?'scoringOn':'scoringOff'}));toast(`ホームの採点を${wanted?'ON':'OFF'}にしました`)}catch(e){toast(e.message)}finally{busy=false;renderState(state)}};
+document.querySelectorAll('[data-control]').forEach(button=>button.onclick=async()=>{const action=button.dataset.control;if(action==='stop'&&!confirm('現在の演奏を停止しますか？'))return;busy=true;renderState(state);try{renderState(await api('api/control',{action}));toast(action==='restart'?'最初から歌いなおします':action==='stop'?'演奏を停止しました':action==='pause'?'一時停止しました':action==='resume'?'再開しました':'キーを変更しました')}catch(e){toast(e.message)}finally{busy=false;renderState(state)}});
 /** DAM本体に表示中の確認へ、選んだ「はい／いいえ」を同じ応答経路で送ります。 */
-async function answerDamConfirmation(yes){if(!state.confirmation||busy)return;busy=true;renderState(state);try{renderState(await api('api/control',{action:yes?'confirmYes':'confirmNo'}));toast(`「${yes?'はい':'いいえ'}」を選択しました`)}catch(e){toast(e.message)}finally{busy=false;refreshState(true)}}
+async function answerDamConfirmation(yes){if(!state.confirmation||busy)return;busy=true;renderState(state);try{renderState(await api('api/control',{action:yes?'confirmYes':'confirmNo'}));toast(`「${yes?'はい':'いいえ'}」を選択しました`)}catch(e){toast(e.message)}finally{busy=false;renderState(state)}}
 $('damConfirmationYes').onclick=()=>answerDamConfirmation(true);$('damConfirmationNo').onclick=()=>answerDamConfirmation(false);
-renderReservationOptions();refreshState(false);setInterval(()=>refreshState(true),1000);setInterval(()=>{if(activeView==='queue')refreshQueue(true)},5000);
+renderReservationOptions();refreshState(false).finally(()=>setTimeout(pollState,1000));setInterval(()=>{if(activeView==='queue')refreshQueue(true)},5000);

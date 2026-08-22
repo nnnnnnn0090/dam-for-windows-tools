@@ -59,6 +59,50 @@ void main() {
   });
 
   test(
+    'shares one sidecar command between concurrent state requests',
+    () async {
+      final commands = <Map<String, dynamic>>[];
+      final broker = RemoteRequestBroker(
+        send: commands.add,
+        isRunning: () => true,
+      );
+
+      final first = broker.remoteState();
+      final second = broker.remoteState();
+      expect(identical(first, second), isTrue);
+      expect(commands, hasLength(1));
+
+      final firstRequestId = commands.single['requestId'];
+      broker.handleEvent(<String, dynamic>{
+        'type': 'remote-state-result',
+        'requestId': firstRequestId,
+        'result': <String, Object>{
+          'connected': true,
+          'playing': false,
+          'paused': false,
+          'key': 0,
+        },
+      });
+      expect((await first).connected, isTrue);
+      expect((await second).connected, isTrue);
+
+      final next = broker.remoteState();
+      expect(commands, hasLength(2));
+      broker.handleEvent(<String, dynamic>{
+        'type': 'remote-state-result',
+        'requestId': commands.last['requestId'],
+        'result': <String, Object>{
+          'connected': true,
+          'playing': true,
+          'paused': false,
+          'key': 0,
+        },
+      });
+      expect((await next).playing, isTrue);
+    },
+  );
+
+  test(
     'allows a yes/no response only through the confirmed action names',
     () async {
       Map<String, dynamic>? command;

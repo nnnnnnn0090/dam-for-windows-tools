@@ -23,6 +23,9 @@ void main() {
     expect(first, contains('--panel:#171c24'));
     expect(first, contains('id="damConfirmation"'));
     expect(first, contains("action:yes?'confirmYes':'confirmNo'"));
+    expect(first, contains('if(stateRequest)return stateRequest'));
+    expect(first, contains('setTimeout(pollState,1000)'));
+    expect(first, isNot(contains('setInterval(()=>refreshState')));
     expect(first, isNot(contains('{{REMOTE_')));
   });
 }

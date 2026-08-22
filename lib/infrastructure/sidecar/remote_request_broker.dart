@@ -38,6 +38,7 @@ class RemoteRequestBroker {
   final Random _secureRandom = Random.secure();
   final Map<String, _PendingRequest<dynamic>> _pending =
       <String, _PendingRequest<dynamic>>{};
+  Future<RemoteControlState>? _remoteStateRequest;
 
   /// 検索語とモードを検証し、最大件数までの曲・歌手結果を取得します。
   Future<List<RemoteSong>> searchSongs(
@@ -117,9 +118,21 @@ class RemoteRequestBroker {
     );
   }
 
-  /// DAMの現在状態を短いタイムアウトで取得します。
-  Future<RemoteControlState> remoteState() async {
-    return RemoteControlState.fromJson(await _command('remoteState'));
+  /// DAMの現在状態を取得し、同時に届いた監視要求は同じ応答を共有します。
+  Future<RemoteControlState> remoteState() {
+    final activeRequest = _remoteStateRequest;
+    if (activeRequest != null) return activeRequest;
+
+    late final Future<RemoteControlState> request;
+    request = _command('remoteState')
+        .then(RemoteControlState.fromJson)
+        .whenComplete(() {
+          if (identical(_remoteStateRequest, request)) {
+            _remoteStateRequest = null;
+          }
+        });
+    _remoteStateRequest = request;
+    return request;
   }
 
   /// 許可リストにある演奏操作だけをDAMへ送り、更新後状態を返します。
