@@ -123,6 +123,11 @@ function validateHooks() {
   ]) {
     verifyPrefix(name, { rva: rvaValue, expectedPrefix });
   }
+  const confirmation = DAM_TARGET_MANIFEST.hooks.messageConfirmation;
+  verifyPrefix('messageConfirmationResponse', {
+    rva: confirmation.respondRva,
+    expectedPrefix: confirmation.respondExpectedPrefix,
+  });
   const requestQueue = DAM_TARGET_MANIFEST.hooks.remoteRequestQueue;
   verifyPrefix('remoteQueueDelete', {
     rva: requestQueue.deleteRva,

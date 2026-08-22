@@ -7,6 +7,7 @@
 
 import 'package:dam_for_windows_tools/domain/app_settings.dart';
 import 'package:dam_for_windows_tools/domain/playback.dart';
+import 'package:dam_for_windows_tools/domain/remote_control.dart';
 import 'package:dam_for_windows_tools/domain/remote_song.dart';
 import 'package:dam_for_windows_tools/domain/tracks.dart';
 import 'package:dam_for_windows_tools/domain/value_objects.dart';
@@ -83,4 +84,28 @@ void main() {
       isNull,
     );
   });
+
+  test(
+    'remote confirmation preserves only its message and yes/no selection',
+    () {
+      final state = RemoteControlState.fromJson(<String, dynamic>{
+        'connected': true,
+        'playing': false,
+        'paused': false,
+        'key': 0,
+        'confirmation': <String, Object>{
+          'message': '歌いなおしますか？',
+          'selected': 'no',
+          'address': '0x14256bd70',
+        },
+      });
+
+      expect(state.confirmation?.message, '歌いなおしますか？');
+      expect(state.confirmation?.selectedYes, isFalse);
+      expect(state.toJson()['confirmation'], <String, Object>{
+        'message': '歌いなおしますか？',
+        'selected': 'no',
+      });
+    },
+  );
 }

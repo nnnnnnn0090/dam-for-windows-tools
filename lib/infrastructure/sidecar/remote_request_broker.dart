@@ -134,6 +134,8 @@ class RemoteRequestBroker {
       'keyReset',
       'scoringOn',
       'scoringOff',
+      'confirmYes',
+      'confirmNo',
     };
     if (!allowed.contains(action)) {
       throw const FormatException('無効な再生操作です');

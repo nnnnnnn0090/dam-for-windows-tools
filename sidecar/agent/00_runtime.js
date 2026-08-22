@@ -22,6 +22,7 @@ let pendingRemoteReservation = null;
 let pendingRemoteFavorite = null;
 const mainThreadListeners = [];
 const mainThreadTasks = [];
+let mainThreadWakeMessage = 0;
 let currentVideoId = '';
 const remoteSearchRows = new Map();
 let config = {
@@ -106,8 +107,8 @@ function detachMainThreadListener() {
   }
 }
 
-/** 所有者のない可視トップレベルウィンドウから、DAMのUIスレッドIDを取得します。 */
-function damUiThreadId() {
+/** 所有者のない可視トップレベルウィンドウから、DAMのウィンドウとUIスレッドを取得します。 */
+function damMainWindow() {
   const user32 = Process.getModuleByName('user32.dll');
   const enumWindows = new NativeFunction(
     user32.getExportByName('EnumWindows'),
@@ -130,7 +131,7 @@ function damUiThreadId() {
     ['pointer', 'uint'],
   );
   const processId = Memory.alloc(4);
-  let threadId = 0;
+  let result = null;
   // DAMプロセスに属する最初の主要ウィンドウを列挙するコールバックです。
   const callback = new NativeCallback(
     (window) => {
@@ -141,14 +142,14 @@ function damUiThreadId() {
       }
       // GW_OWNER=4で所有者を確認し、DAM自身のトップレベルウィンドウを優先します。
       if (!getWindow(window, 4).isNull()) return 1;
-      threadId = candidate;
+      result = { window, threadId: candidate };
       return 0;
     },
     'int',
     ['pointer', 'pointer'],
   );
   enumWindows(callback, NULL);
-  return threadId;
+  return result;
 }
 
 /** UIスレッドへ到達した保留タスクを順に実行し、次の待機を再設定します。 */
@@ -168,31 +169,61 @@ function drainMainThreadTasks() {
   armMainThreadDispatcher();
 }
 
-/** DAMの既存メッセージループを一時フックし、可視UIを変えずタスク実行を促します。 */
+/** このアプリ専用のWindowsメッセージ番号を登録し、他のメッセージと衝突しないようにします。 */
+function registeredMainThreadWakeMessage(user32) {
+  if (mainThreadWakeMessage !== 0) return mainThreadWakeMessage;
+  const registerWindowMessage = new NativeFunction(
+    user32.getExportByName('RegisterWindowMessageW'),
+    'uint',
+    ['pointer'],
+  );
+  const name = Memory.allocUtf16String(
+    `DAMforWindowsTools.MainThread.${Process.id}`,
+  );
+  mainThreadWakeMessage = registerWindowMessage(name);
+  if (mainThreadWakeMessage === 0) {
+    throw new Error('DAMメインスレッド用メッセージを登録できませんでした');
+  }
+  return mainThreadWakeMessage;
+}
+
+/** DAMのWndProcが専用メッセージを処理し終えた直後に、保留タスクを実行します。 */
 function armMainThreadDispatcher() {
   if (mainThreadListeners.length > 0 || mainThreadTasks.length === 0) return;
-  const threadId = damUiThreadId();
-  if (threadId === 0) return;
+  const mainWindow = damMainWindow();
+  if (mainWindow === null) return;
   const user32 = Process.getModuleByName('user32.dll');
-  /** 対象UIスレッドのメッセージ処理時だけ保留タスクを実行します。 */
-  const onMessageLoop = function () {
-    if (Process.getCurrentThreadId() !== threadId || mainThreadTasks.length === 0) {
-      return;
-    }
-    drainMainThreadTasks();
-  };
-  for (const api of ['PeekMessageW', 'GetMessageW']) {
-    mainThreadListeners.push(
-      Interceptor.attach(user32.getExportByName(api), { onEnter: onMessageLoop }),
-    );
-  }
-  const postThreadMessage = new NativeFunction(
-    user32.getExportByName('PostThreadMessageW'),
-    'int',
-    ['uint', 'uint', 'pointer', 'pointer'],
+  const wakeMessage = registeredMainThreadWakeMessage(user32);
+  mainThreadListeners.push(
+    Interceptor.attach(user32.getExportByName('DispatchMessageW'), {
+      // x64のMSGは先頭がHWND、+8がmessageです。専用メッセージだけを識別します。
+      onEnter(args) {
+        this.isDamWakeMessage = false;
+        if (Process.getCurrentThreadId() !== mainWindow.threadId || args[0].isNull()) {
+          return;
+        }
+        const message = args[0];
+        this.isDamWakeMessage =
+          message.readPointer().equals(mainWindow.window) &&
+          message.add(Process.pointerSize).readU32() === wakeMessage;
+      },
+      // WndProc内の処理が完了してから実行し、メッセージ取得中の再入を防ぎます。
+      onLeave() {
+        if (this.isDamWakeMessage && mainThreadTasks.length > 0) {
+          drainMainThreadTasks();
+        }
+      },
+    }),
   );
-  // WM_NULLで既存ループだけを起こし、本体画面に操作やモーダルを発生させません。
-  postThreadMessage(threadId, 0, NULL, NULL);
+  const postMessage = new NativeFunction(
+    user32.getExportByName('PostMessageW'),
+    'int',
+    ['pointer', 'uint', 'pointer', 'pointer'],
+  );
+  if (postMessage(mainWindow.window, wakeMessage, NULL, NULL) === 0) {
+    detachMainThreadListener();
+    throw new Error('DAMメインウィンドウへ処理要求を送信できませんでした');
+  }
 }
 
 /** DAM内部操作をUIスレッドへ移し、期限内に実行できなければ拒否します。 */
@@ -215,7 +246,15 @@ function runOnDamMainThread(name, run, timeoutMs = 3000) {
       reject(new Error(`${name} をDAMのメインスレッドで実行できませんでした`));
     }, timeoutMs);
     mainThreadTasks.push(task);
-    armMainThreadDispatcher();
+    try {
+      armMainThreadDispatcher();
+    } catch (error) {
+      task.active = false;
+      clearTimeout(task.timer);
+      const index = mainThreadTasks.indexOf(task);
+      if (index >= 0) mainThreadTasks.splice(index, 1);
+      reject(error);
+    }
   });
 }
 

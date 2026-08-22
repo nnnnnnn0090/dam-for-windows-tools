@@ -55,6 +55,14 @@
 </section>
 </main>
 <nav class="bottom"><div class="nav"><button class="active" data-view="search"><b>⌕</b>選曲</button><button data-view="queue"><b>☷</b>予約</button><button data-view="history"><b>履</b>履歴</button><button data-view="control"><b>●</b>演奏</button></div></nav>
+<div class="dam-confirmation" id="damConfirmation" role="dialog" aria-modal="true" aria-labelledby="damConfirmationTitle" hidden>
+  <section class="dam-confirmation-card">
+    <div class="dam-confirmation-label">DAM本体の確認</div>
+    <h2 id="damConfirmationTitle">選択してください</h2>
+    <p id="damConfirmationMessage"></p>
+    <div class="dam-confirmation-actions"><button id="damConfirmationNo" type="button">いいえ</button><button id="damConfirmationYes" type="button">はい</button></div>
+  </section>
+</div>
 <div class="toast" id="toast"></div>
 <script>
 {{REMOTE_SCRIPT}}

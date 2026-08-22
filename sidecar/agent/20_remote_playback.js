@@ -25,6 +25,50 @@ function setGlobalScoring(enabled) {
   );
 }
 
+/** DAMのMessageAreaに表示中の「はい／いいえ」確認だけを読み取ります。 */
+function currentMessageConfirmation() {
+  const descriptor = DAM_TARGET_MANIFEST.hooks.messageConfirmation;
+  try {
+    const sceneState = rva(descriptor.sceneStateRva).readU32();
+    const buttonMode = rva(descriptor.buttonModeRva).readU32();
+    if (
+      sceneState !== parseInteger(descriptor.visibleState) ||
+      buttonMode !== parseInteger(descriptor.yesNoButtonMode)
+    ) {
+      return null;
+    }
+    const selection = rva(descriptor.selectionRva).readU8();
+    const yesSelection = parseInteger(descriptor.yesSelection);
+    const noSelection = parseInteger(descriptor.noSelection);
+    if (selection !== yesSelection && selection !== noSelection) return null;
+    const message = cleanText(
+      safeUtf16(
+        rva(descriptor.messageRva),
+        parseInteger(descriptor.messageCapacityChars),
+      ),
+    );
+    return {
+      message: message || 'DAM本体で選択を待っています',
+      selected: selection === yesSelection ? 'yes' : 'no',
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+/** 表示中の確認へDAM本体と同じ選択値を設定し、共通応答処理で確定します。 */
+function respondToMessageConfirmation(yes) {
+  const descriptor = DAM_TARGET_MANIFEST.hooks.messageConfirmation;
+  if (currentMessageConfirmation() === null) {
+    throw new Error('DAM本体に選択可能な確認画面はありません');
+  }
+  rva(descriptor.selectionRva).writeU8(
+    parseInteger(yes ? descriptor.yesSelection : descriptor.noSelection),
+  );
+  const respond = new NativeFunction(rva(descriptor.respondRva), 'void', []);
+  respond();
+}
+
 /** DAMメモリを読み取り、リモコン表示に必要な演奏・曲・採点状態を構築します。 */
 function currentRemoteState() {
   const playback = DAM_TARGET_MANIFEST.hooks.remotePlaybackControl;
@@ -69,6 +113,7 @@ function currentRemoteState() {
     artist,
     title,
     damScoring,
+    confirmation: currentMessageConfirmation(),
   };
 }
 
@@ -129,6 +174,10 @@ function queueRowForToken(token) {
 function performRemoteControl(action) {
   const descriptor = DAM_TARGET_MANIFEST.hooks.remotePlaybackControl;
   const state = currentRemoteState();
+  if (action === 'confirmYes' || action === 'confirmNo') {
+    respondToMessageConfirmation(action === 'confirmYes');
+    return currentRemoteState();
+  }
   if (action === 'scoringOn' || action === 'scoringOff') {
     setGlobalScoring(action === 'scoringOn');
     return currentRemoteState();

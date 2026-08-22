@@ -21,6 +21,8 @@ void main() {
     expect(first, contains(AppConfig.productName));
     expect(first, contains('async function api('));
     expect(first, contains('--panel:#171c24'));
+    expect(first, contains('id="damConfirmation"'));
+    expect(first, contains("action:yes?'confirmYes':'confirmNo'"));
     expect(first, isNot(contains('{{REMOTE_')));
   });
 }

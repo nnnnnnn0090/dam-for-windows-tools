@@ -7,6 +7,29 @@
 
 import 'value_objects.dart';
 
+/// DAM本体に表示中の「はい／いいえ」確認と現在の選択位置を表します。
+class RemoteConfirmation {
+  /// 利用者へ表示するDAM由来の文言と、現在選択中のボタンを保持します。
+  const RemoteConfirmation({required this.message, required this.selectedYes});
+
+  final String message;
+  final bool selectedYes;
+
+  /// Sidecarが返した確認情報を、表示可能な文言とBooleanへ正規化します。
+  factory RemoteConfirmation.fromJson(Map<String, dynamic> json) {
+    return RemoteConfirmation(
+      message: sanitizeText(json['message'], maximumLength: 500),
+      selectedYes: json['selected'] != 'no',
+    );
+  }
+
+  /// Webリモコンへ返す確認情報を、内部アドレスを含まないJSONへ変換します。
+  Map<String, Object> toJson() => <String, Object>{
+    'message': message,
+    'selected': selectedYes ? 'yes' : 'no',
+  };
+}
+
 /// Webリモコンへ公開する、DAMの接続状態と現在の演奏状態を表します。
 ///
 /// DAM内部の値を直接公開せず、表示と操作判断に必要な最小項目だけを保持します。
@@ -21,6 +44,7 @@ class RemoteControlState {
     this.videoId = '',
     this.artist = '',
     this.title = '',
+    this.confirmation,
   });
 
   final bool connected;
@@ -31,10 +55,12 @@ class RemoteControlState {
   final String videoId;
   final String artist;
   final String title;
+  final RemoteConfirmation? confirmation;
 
   /// Sidecar応答を検証し、キー範囲と表示文字列を正規化して復元します。
   factory RemoteControlState.fromJson(Map<String, dynamic> json) {
     final rawKey = json['key'];
+    final rawConfirmation = json['confirmation'];
     return RemoteControlState(
       connected: json['connected'] == true,
       playing: json['playing'] == true,
@@ -44,6 +70,11 @@ class RemoteControlState {
       videoId: normalizeVideoAssetId(json['videoId']),
       artist: sanitizeText(json['artist'], maximumLength: 300),
       title: sanitizeText(json['title'], maximumLength: 300),
+      confirmation: rawConfirmation is Map
+          ? RemoteConfirmation.fromJson(
+              Map<String, dynamic>.from(rawConfirmation),
+            )
+          : null,
     );
   }
 
@@ -57,6 +88,7 @@ class RemoteControlState {
     'videoId': videoId,
     'artist': artist,
     'title': title,
+    if (confirmation != null) 'confirmation': confirmation!.toJson(),
   };
 }
 

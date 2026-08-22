@@ -324,6 +324,21 @@
       "maximumKey": 7,
       "meaning": "verified MessageArea pause counter, terminal-stop, restart-confirmation, and pitch-control paths; pause is called only while playback mode is 0 or 1"
     },
+    "messageConfirmation": {
+      "sceneStateRva": "0x256bc70",
+      "visibleState": 0,
+      "selectionRva": "0x256bd70",
+      "yesSelection": 0,
+      "noSelection": 1,
+      "messageRva": "0x256bd80",
+      "messageCapacityChars": 128,
+      "messageCodeRva": "0x256bce0",
+      "buttonModeRva": "0x256bce4",
+      "yesNoButtonMode": 1,
+      "respondRva": "0x0c2330",
+      "respondExpectedPrefix": "48895c240848896c2410488974241848897c242041564883ec60",
+      "meaning": "verified MessageArea yes/no scene state, UTF-16 message buffer, selected button, and shared response handler"
+    },
     "remoteRequestQueue": {
       "deleteRva": "0x0e9010",
       "deleteExpectedPrefix": "48895c2410488974241848894c240857",

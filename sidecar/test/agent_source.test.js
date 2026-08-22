@@ -81,3 +81,43 @@ test('DAM play history uses its verified catalog and list-detail path', () => {
     ],
   });
 });
+
+// UI操作がメッセージ取得中へ再入せず、WndProc完了後にだけ実行されることを固定します。
+test('dispatches DAM UI work only after its private window message', () => {
+  const runtime = fs.readFileSync(
+    new URL('../agent/00_runtime.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(runtime, /RegisterWindowMessageW/);
+  assert.match(runtime, /DispatchMessageW/);
+  assert.match(runtime, /PostMessageW/);
+  assert.doesNotMatch(runtime, /PeekMessageW|GetMessageW|PostThreadMessageW/);
+});
+
+// 確認画面の読み取りと応答が解析済みMessageArea経路だけを参照することを検証します。
+test('describes the verified MessageArea yes-no response path', () => {
+  const manifest = JSON.parse(fs.readFileSync(
+    new URL('../supported-dam.json', import.meta.url),
+    'utf8',
+  ));
+  const confirmation = manifest.hooks.messageConfirmation;
+
+  assert.deepEqual({
+    sceneStateRva: confirmation.sceneStateRva,
+    selectionRva: confirmation.selectionRva,
+    messageRva: confirmation.messageRva,
+    buttonModeRva: confirmation.buttonModeRva,
+    respondRva: confirmation.respondRva,
+    yesSelection: confirmation.yesSelection,
+    noSelection: confirmation.noSelection,
+  }, {
+    sceneStateRva: '0x256bc70',
+    selectionRva: '0x256bd70',
+    messageRva: '0x256bd80',
+    buttonModeRva: '0x256bce4',
+    respondRva: '0x0c2330',
+    yesSelection: 0,
+    noSelection: 1,
+  });
+});

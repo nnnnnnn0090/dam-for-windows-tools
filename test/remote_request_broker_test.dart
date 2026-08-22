@@ -57,4 +57,38 @@ void main() {
     broker.failAll(StateError('helper exited'));
     await expectLater(future, throwsStateError);
   });
+
+  test(
+    'allows a yes/no response only through the confirmed action names',
+    () async {
+      Map<String, dynamic>? command;
+      final broker = RemoteRequestBroker(
+        send: (value) => command = value,
+        isRunning: () => true,
+      );
+
+      final future = broker.remoteControl('confirmYes');
+      expect(command!['type'], 'remoteControl');
+      expect(command!['action'], 'confirmYes');
+      expect(
+        broker.handleEvent(<String, dynamic>{
+          'type': 'remote-control-result',
+          'requestId': command!['requestId'],
+          'result': <String, Object>{
+            'connected': true,
+            'playing': false,
+            'paused': false,
+            'key': 0,
+          },
+        }),
+        isTrue,
+      );
+
+      expect((await future).connected, isTrue);
+      await expectLater(
+        broker.remoteControl('confirmMaybe'),
+        throwsFormatException,
+      );
+    },
+  );
 }
