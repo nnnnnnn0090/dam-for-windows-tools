@@ -1,0 +1,24 @@
+# Project: DAM for Windows Tools
+# File: dependabot.yml
+# Copyright (c) 2026 nnnnnnn0090. All rights reserved.
+# Author: nnnnnnn0090
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Created: 2026-08-22
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /sidecar
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

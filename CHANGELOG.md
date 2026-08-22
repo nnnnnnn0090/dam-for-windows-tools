@@ -1,0 +1,27 @@
+<!--
+Project: DAM for Windows Tools
+File: CHANGELOG.md
+# Copyright (c) 2026 nnnnnnn0090. All rights reserved.
+# Author: nnnnnnn0090
+SPDX-License-Identifier: GPL-3.0-or-later
+Created: 2026-08-22
+-->
+
+# 変更履歴
+
+## 1.0.0 - 2026-08-22
+
+- DKKaraokeWindows.exe 1.1.7.0の指定SHA-256へ対応
+- モジュールチェックとフォアグラウンドチェックの個別切替
+- HLS中継、動画差し替え、再生開始位置調整、公式配信への退避
+- 再生時だけ追加される曲履歴とセッション内動画指定
+- 歌唱表現のリアルタイム採点表示
+- スマホ向けリモコン、検索、曲詳細、お気に入り、履歴、予約管理、演奏・キー・採点操作
+- リモコンの履歴をツール独自履歴ではなくDAM本体の演奏履歴と同じ取得経路へ統一
+- ポータブルデータ保存、単一起動、安全なパッチ復元とセッション清掃
+- 固定ハッシュで検証したFFmpeg 9.0.1 Gyan full buildとNode.js 24.19.0を同梱
+- ES Modulesの共通処理をFrida通常スクリプトへ安全に合成する検証を追加
+- 利用者向け実行ZIPと対応ソースZIPを分離し、実行時に不要なNode依存・開発文書・作業フォルダを除外
+- 新規cloneから固定依存をHTTPSで自動取得し、SHA-256検証後だけ利用するビルド処理を追加
+- 署名済みMicrosoft Visual C++ Runtimeを無改変でアプリローカル同梱し、別途インストールを不要化
+- オープンソースライセンス、対応ソース、第三者通知、ファイルチェックサムを同梱

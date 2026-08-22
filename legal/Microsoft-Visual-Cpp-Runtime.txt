@@ -1,0 +1,22 @@
+Project: DAM for Windows Tools
+File: Microsoft-Visual-Cpp-Runtime.txt
+Copyright (c) 2026 nnnnnnn0090. All rights reserved.
+Author: nnnnnnn0090
+SPDX-License-Identifier: GPL-3.0-or-later
+Created: 2026-08-22
+
+Microsoft Visual C++ Runtime redistribution notice
+
+The release package contains unmodified Microsoft Visual C++ Runtime files
+from the licensed Visual Studio installation used to build this application.
+These files remain copyrighted and licensed by Microsoft Corporation. They
+are redistributed subject to the Microsoft Software License Terms for that
+Visual Studio installation and the applicable REDIST list.
+
+Official redistribution documentation:
+https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files
+
+Visual Studio 2026 distributable-code list:
+https://learn.microsoft.com/en-us/visualstudio/releases/2026/redistribution
+
+This notice does not replace or modify Microsoft's license terms.

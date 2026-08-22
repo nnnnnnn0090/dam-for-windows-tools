@@ -1,0 +1,58 @@
+# Project: DAM for Windows Tools
+# File: verify.yml
+# Copyright (c) 2026 nnnnnnn0090. All rights reserved.
+# Author: nnnnnnn0090
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Created: 2026-08-22
+
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Read pinned tool versions
+        id: versions
+        shell: pwsh
+        run: |
+          $config = Get-Content tool/release_config.json -Raw | ConvertFrom-Json
+          "node=$($config.nodeVersion)" >> $env:GITHUB_OUTPUT
+          "flutter=$($config.flutterVersion)" >> $env:GITHUB_OUTPUT
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: tool/cache
+          key: release-inputs-${{ hashFiles('tool/source_inputs.json') }}
+      - name: Bootstrap pinned release inputs
+        shell: pwsh
+        run: .\tool\bootstrap_dependencies.ps1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ steps.versions.outputs.node }}
+          cache: npm
+          cache-dependency-path: sidecar/package-lock.json
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ steps.versions.outputs.flutter }}
+          cache: true
+      - name: Install Node dependencies
+        run: npm ci --prefix sidecar
+      - name: Verify Node helper
+        run: |
+          npm run check --prefix sidecar
+          npm test --prefix sidecar
+          npm audit --omit=dev --prefix sidecar
+      - name: Verify Flutter application
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test

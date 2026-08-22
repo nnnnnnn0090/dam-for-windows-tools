@@ -1,0 +1,38 @@
+// Project: DAM for Windows Tools
+// File: storage_test.dart
+// Copyright (c) 2026 nnnnnnn0090. All rights reserved.
+// Author: nnnnnnn0090
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Created: 2026-08-22
+
+import 'dart:io';
+
+import 'package:dam_for_windows_tools/domain/models.dart';
+import 'package:dam_for_windows_tools/infrastructure/app_paths.dart';
+import 'package:dam_for_windows_tools/infrastructure/storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('history storage de-duplicates IDs and clears only history', () async {
+    final root = await Directory.systemTemp.createTemp('dam-tools-storage-');
+    try {
+      final paths = AppPaths.forTesting(root: root);
+      final storage = AppStorage(paths);
+      await storage.saveSettings(const AppSettings(skipMs: 150));
+      await storage.saveHistory(const <TrackRecord>[
+        TrackRecord(videoId: '6184-92', artist: 'A', title: 'T'),
+        TrackRecord(videoId: '6184-92', artist: 'B', title: 'U'),
+      ]);
+
+      final history = await storage.loadHistory();
+      expect(history, hasLength(1));
+      expect(history.single.videoId, '6184-92');
+
+      await storage.clearHistory();
+      expect(await paths.historyFile.exists(), isFalse);
+      expect(await paths.settingsFile.exists(), isTrue);
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
+}
