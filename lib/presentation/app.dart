@@ -15,6 +15,7 @@ import '../config/app_config.dart';
 import '../config/app_theme.dart';
 import '../infrastructure/windows_single_instance.dart';
 import 'home/home_page.dart';
+import 'widgets/app_update_dialog.dart';
 
 /// アプリ全体のテーマと、Windows終了要求を扱う最上位Widgetです。
 class DamForWindowsToolsApp extends StatefulWidget {
@@ -36,6 +37,7 @@ class _DamForWindowsToolsAppState extends State<DamForWindowsToolsApp>
   );
 
   late final AppController controller = AppController();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _nativeCloseHandled = false;
 
   /// ライフサイクル監視を登録し、GUIを表示したままバックグラウンド初期化を開始します。
@@ -44,7 +46,21 @@ class _DamForWindowsToolsAppState extends State<DamForWindowsToolsApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _lifecycleChannel.setMethodCallHandler(_handleLifecycleMethod);
-    unawaited(controller.initialize());
+    unawaited(_initializeAndCheckForUpdates());
+  }
+
+  /// 主要サービスの起動後に更新を確認し、新版がある場合だけ起動時確認を表示します。
+  Future<void> _initializeAndCheckForUpdates() async {
+    await controller.initialize();
+    if (!mounted || !controller.updatesSupported) return;
+    final update = await controller.checkForUpdates();
+    final navigatorContext = _navigatorKey.currentContext;
+    if (navigatorContext == null ||
+        !navigatorContext.mounted ||
+        update == null) {
+      return;
+    }
+    await showAppUpdatePrompt(navigatorContext, controller, update);
   }
 
   /// Flutterエンジン切断時にもサービス終了を開始し、パッチを残さないようにします。
@@ -78,6 +94,7 @@ class _DamForWindowsToolsAppState extends State<DamForWindowsToolsApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: AppConfig.productName,
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark,

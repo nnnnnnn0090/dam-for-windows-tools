@@ -41,8 +41,14 @@ $pubspecText = Get-Content -LiteralPath (Join-Path $projectRoot 'pubspec.yaml') 
 if ($pubspecText -notmatch '(?m)^version:\s*([^+\s]+)') { throw 'pubspec.yaml version is missing' }
 if ($Matches[1] -ne $releaseVersion) { throw 'pubspec.yaml and release_config.json versions differ' }
 $sidecarPackage = Get-Content -LiteralPath (Join-Path $projectRoot 'sidecar\package.json') -Raw | ConvertFrom-Json
-if ($sidecarPackage.engines.node -ne $nodeVersion -or $sidecarPackage.dependencies.frida -ne $fridaVersion) {
+if ($sidecarPackage.version -ne $releaseVersion -or
+    $sidecarPackage.engines.node -ne $nodeVersion -or
+    $sidecarPackage.dependencies.frida -ne $fridaVersion) {
   throw 'sidecar/package.json and release_config.json versions differ'
+}
+$appConfigText = Get-Content -LiteralPath (Join-Path $projectRoot 'lib\config\app_config.dart') -Raw
+if ($appConfigText -notmatch "static const productVersion = '$([regex]::Escape($releaseVersion))';") {
+  throw 'AppConfig.productVersion and release_config.json versions differ'
 }
 $executableName = "$releaseName.exe"
 $manifestName = 'supported-dam.json'
@@ -150,6 +156,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'sidecar agent source syntax check failed' }
     & $nodeExe (Join-Path $projectRoot 'sidecar\check_agent_syntax.js')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar agent syntax check failed' }
+    & (Join-Path $projectRoot 'tool\test_updater.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows updater smoke test failed' }
     & (Join-Path $nodeCache 'npm.cmd') test --prefix (Join-Path $projectRoot 'sidecar')
     if ($LASTEXITCODE -ne 0) { throw 'sidecar tests failed' }
     & flutter pub get

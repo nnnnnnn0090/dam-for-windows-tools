@@ -6,11 +6,13 @@
 // Created: 2026-08-22
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
 import '../domain/app_settings.dart';
+import '../domain/app_update.dart';
 import '../domain/playback.dart';
 import '../domain/scoring.dart';
 import '../domain/tracks.dart';
@@ -40,6 +42,12 @@ class AppController extends ChangeNotifier {
   String connectionCode = 'initializing';
   String connectionState = '初期化中';
   String? fatalError;
+  AppUpdatePhase updatePhase = AppUpdatePhase.idle;
+  AppUpdate? availableUpdate;
+  String updateStatus = '更新を確認';
+  int updateProgressPercent = 0;
+  Future<AppUpdate?>? _updateCheck;
+  bool _updatePromptOpen = false;
 
   /// 現在の曲で採点イベントを受信中か返します。
   bool get scoringActive => _scoring.active;
@@ -52,6 +60,15 @@ class AppController extends ChangeNotifier {
 
   /// 同一LANの端末から開くWebリモコンURLを返します。
   String? get remoteControlUrl => _runtime?.remoteControlUrl;
+
+  /// 配布フォルダから起動しており、自動更新を安全に実行できるか返します。
+  bool get updatesSupported => _runtime?.updatesSupported == true;
+
+  /// 更新確認またはダウンロード中で、同じ操作を重ねてはいけないか返します。
+  bool get updateBusy =>
+      updatePhase == AppUpdatePhase.checking ||
+      updatePhase == AppUpdatePhase.downloading ||
+      updatePhase == AppUpdatePhase.restarting;
 
   /// 技法別の検出回数を、変更できない参照として返します。
   Map<int, int> get scoringCounts => _scoring.counts;
@@ -83,6 +100,15 @@ class AppController extends ChangeNotifier {
       connectionCode = 'monitoring';
       connectionState = 'DAMを監視中';
       addLog('${AppConfig.productName}を起動しました');
+      try {
+        final previousUpdateFailure = await startup.runtime
+            .takeLastUpdateFailure();
+        if (previousUpdateFailure != null && previousUpdateFailure.isNotEmpty) {
+          addLog('前回の自動更新に失敗し、旧版へ復元しました: $previousUpdateFailure');
+        }
+      } on Object catch (error) {
+        addLog('自動更新の作業履歴を確認できません: $error');
+      }
     } on Object catch (error, stackTrace) {
       await _runtime?.shutdown();
       _runtime = null;
@@ -112,6 +138,54 @@ class AppController extends ChangeNotifier {
       await _runtime?.openRemoteControl();
     } on Object catch (error) {
       addLog('リモコンをブラウザで開けません: $error');
+    }
+  }
+
+  /// GitHub Releasesの確認を1本へ束ね、GUIへ最新版または失敗状態を反映します。
+  Future<AppUpdate?> checkForUpdates() {
+    final activeCheck = _updateCheck;
+    if (activeCheck != null) return activeCheck;
+    late final Future<AppUpdate?> request;
+    request = _performUpdateCheck().whenComplete(() {
+      if (identical(_updateCheck, request)) _updateCheck = null;
+    });
+    _updateCheck = request;
+    return request;
+  }
+
+  /// 更新確認ダイアログの多重表示を防ぎ、表示権を最初の画面だけへ渡します。
+  bool beginUpdatePrompt() {
+    if (_updatePromptOpen) return false;
+    _updatePromptOpen = true;
+    return true;
+  }
+
+  /// 更新確認ダイアログを閉じ、次回の手動確認を許可します。
+  void endUpdatePrompt() {
+    _updatePromptOpen = false;
+  }
+
+  /// 選択中の更新を検証付きで取得し、サービス停止後に更新プロセスへ引き継ぎます。
+  Future<void> installAvailableUpdate() async {
+    final update = availableUpdate;
+    final runtime = _runtime;
+    if (update == null || runtime == null || updateBusy) return;
+    updatePhase = AppUpdatePhase.downloading;
+    updateStatus = 'v${update.version} をダウンロード中';
+    updateProgressPercent = 0;
+    notifyListeners();
+    try {
+      await runtime.prepareUpdate(update, onProgress: _acceptUpdateProgress);
+      updatePhase = AppUpdatePhase.restarting;
+      updateStatus = '更新して再起動します';
+      notifyListeners();
+      await shutdown();
+      exit(0);
+    } on Object catch (error, stackTrace) {
+      updatePhase = AppUpdatePhase.failed;
+      updateStatus = '更新失敗';
+      addLog('自動更新に失敗しました: $error\n$stackTrace');
+      notifyListeners();
     }
   }
 
@@ -181,6 +255,50 @@ class AppController extends ChangeNotifier {
     shuttingDown = true;
     notifyListeners();
     await _runtime?.shutdown();
+  }
+
+  /// 更新サーバーの応答をアプリ状態へ変換し、ネットワーク失敗は主要機能と分離します。
+  Future<AppUpdate?> _performUpdateCheck() async {
+    final runtime = _runtime;
+    if (runtime == null || !runtime.updatesSupported) {
+      updatePhase = AppUpdatePhase.failed;
+      updateStatus = '配布版でのみ更新できます';
+      notifyListeners();
+      return null;
+    }
+    updatePhase = AppUpdatePhase.checking;
+    updateStatus = '更新を確認中';
+    notifyListeners();
+    try {
+      final update = await runtime.checkForUpdate();
+      if (shuttingDown) return null;
+      availableUpdate = update;
+      if (update == null) {
+        updatePhase = AppUpdatePhase.latest;
+        updateStatus = '最新版です';
+      } else {
+        updatePhase = AppUpdatePhase.available;
+        updateStatus = 'v${update.version} に更新';
+      }
+      notifyListeners();
+      return update;
+    } on Object catch (error) {
+      if (shuttingDown) return null;
+      updatePhase = AppUpdatePhase.failed;
+      updateStatus = '更新確認に失敗';
+      addLog('更新情報を確認できません: $error');
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// ダウンロード進捗を1%単位に丸め、過剰なGUI再描画を防ぎます。
+  void _acceptUpdateProgress(double progress) {
+    final percent = (progress.clamp(0, 1) * 100).floor();
+    if (percent == updateProgressPercent) return;
+    updateProgressPercent = percent;
+    updateStatus = '更新をダウンロード中 $percent%';
+    notifyListeners();
   }
 
   /// Sidecarから届く型付きイベントを、対応するアプリ状態へ振り分けます。

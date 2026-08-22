@@ -11,7 +11,12 @@
 /// GUIや保存形式まで変更する必要がない構成にしています。
 abstract final class AppConfig {
   static const productName = 'DAM for Windows Tools';
+  static const productVersion = '1.1.0';
+  static const executableName = 'DAMforWindowsTools.exe';
+  static const releaseArchiveRootName = 'DAMforWindowsTools';
   static const remoteName = 'DAM for Windows Remote';
+  static const latestReleaseApi =
+      'https://api.github.com/repos/nnnnnnn0090/dam-for-windows-tools/releases/latest';
   static const legalSummary =
       '非公式・第一興商株式会社非公認のツールです。DAMおよび関連する名称は、'
       '各権利者に帰属します。正規に利用できる家庭内環境でのみ使用してください。';
@@ -25,5 +30,6 @@ abstract final class AppConfig {
   static const remotePageAsset = 'assets/remote/index.html';
   static const remoteStyleAsset = 'assets/remote/styles.css';
   static const remoteScriptAsset = 'assets/remote/app.js';
+  static const updaterScriptAsset = 'assets/updater/update.ps1';
   static const lifecycleChannel = 'dam-for-windows-tools/lifecycle';
 }

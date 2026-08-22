@@ -22,7 +22,7 @@ DAM for Windows Toolsの自作部分はCopyright (c) 2026 nnnnnnn0090、`GPL-3.0
 | FFmpeg | 9.0.1 Gyan full build | GPL-3.0; 固定配布物、構成、内蔵ライブラリ一覧は `LICENSES/FFmpeg-Gyan-README.txt`、実行時構成は `LICENSES/FFmpeg-Gyan-build.txt` |
 | Microsoft Visual C++ Runtime | ビルド環境の署名済みv14 x64ランタイム | Microsoft Software License TermsおよびVisual Studio REDIST一覧; 無改変のアプリローカル配布 |
 
-FFmpegはGyanの通常フル配布版から`ffmpeg.exe`だけを無改変で収録します。配布アーカイブは9.0.1タグへ固定し、アーカイブと実行ファイルのSHA-256を検証します。対応するFFmpegソース、DAM for Windows Toolsのソース、Frida、Frida Node、Frida Core、Frida Gumのソースは、実行ZIPと同時に公開する`DAMforWindowsTools-1.0.0-source.zip`へ分離しています。取得元と入力SHA-256はソースZIP内の`source_inputs.json`に記録します。
+FFmpegはGyanの通常フル配布版から`ffmpeg.exe`だけを無改変で収録します。配布アーカイブは9.0.1タグへ固定し、アーカイブと実行ファイルのSHA-256を検証します。対応するFFmpegソース、DAM for Windows Toolsのソース、Frida、Frida Node、Frida Core、Frida Gumのソースは、実行ZIPと同時に公開する`DAMforWindowsTools-1.1.0-source.zip`へ分離しています。取得元と入力SHA-256はソースZIP内の`source_inputs.json`に記録します。
 
 このファイルは各上流ライセンスの代替ではありません。再配布時は`LICENSES/`、`THIRD_PARTY_NOTICES.md`、`SHA256SUMS.txt`を削除せず、対応するソースZIPも同じ場所から取得できる状態にしてください。
 

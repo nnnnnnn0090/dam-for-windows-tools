@@ -40,10 +40,10 @@ cd dam-for-windows-tools
 
 ビルド処理は一時ステージを自動検証してから、`dist/`へ次の4ファイルだけを生成します。
 
-- `DAMforWindowsTools-1.0.0-win-x64.zip`
-- `DAMforWindowsTools-1.0.0-win-x64.zip.sha256`
-- `DAMforWindowsTools-1.0.0-source.zip`
-- `DAMforWindowsTools-1.0.0-source.zip.sha256`
+- `DAMforWindowsTools-1.1.0-win-x64.zip`
+- `DAMforWindowsTools-1.1.0-win-x64.zip.sha256`
+- `DAMforWindowsTools-1.1.0-source.zip`
+- `DAMforWindowsTools-1.1.0-source.zip.sha256`
 
 実行ZIPには実行時ファイル、利用案内、ライセンス、完全性情報だけを含めます。対応ソースと開発者向け文書はソースZIPへ分離し、実行ZIPと同じリリースページで公開してください。展開済み実行フォルダは`dist/`へ残しません。
 

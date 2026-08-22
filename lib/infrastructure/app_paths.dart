@@ -19,6 +19,7 @@ import '../config/app_config.dart';
 class AppPaths {
   /// 検証済みの各ディレクトリと同梱実行ファイルからパス集合を生成します。
   AppPaths._({
+    required this.applicationDirectory,
     required this.supportDirectory,
     required this.sessionParent,
     required this.sessionDirectory,
@@ -28,6 +29,7 @@ class AppPaths {
     required this.ffmpegExecutable,
   });
 
+  final Directory applicationDirectory;
   final Directory supportDirectory;
   final Directory sessionParent;
   final Directory sessionDirectory;
@@ -47,6 +49,7 @@ class AppPaths {
     final session = Directory(p.join(parent.path, 'session-test'));
     final runtime = Directory(p.join(root.path, 'runtime'));
     return AppPaths._(
+      applicationDirectory: root,
       supportDirectory: support,
       sessionParent: parent,
       sessionDirectory: session,
@@ -62,6 +65,15 @@ class AppPaths {
 
   /// URLや時刻を含まない曲履歴ファイルを返します。
   File get historyFile => File(p.join(supportDirectory.path, 'history.json'));
+
+  /// 実行中の配布EXEが置かれる、更新対象ファイルを限定したパスを返します。
+  File get applicationExecutable =>
+      File(p.join(applicationDirectory.path, AppConfig.executableName));
+
+  /// 同梱runtimeと製品EXEの両方が揃った配布フォルダからの起動か返します。
+  bool get isPackagedApplication =>
+      Directory(p.join(applicationDirectory.path, 'runtime')).existsSync() &&
+      applicationExecutable.existsSync();
 
   /// 利用者が取り込んだ差し替え動画の永続ディレクトリを返します。
   Directory get manualVideosDirectory =>
@@ -116,6 +128,7 @@ class AppPaths {
     final bundledFfmpeg = File(p.join(runtime.path, 'ffmpeg.exe'));
 
     return AppPaths._(
+      applicationDirectory: applicationRoot,
       supportDirectory: support,
       sessionParent: parent,
       sessionDirectory: session,

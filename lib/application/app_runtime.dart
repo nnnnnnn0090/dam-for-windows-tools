@@ -6,6 +6,7 @@
 // Created: 2026-08-23
 
 import '../domain/app_settings.dart';
+import '../domain/app_update.dart';
 import '../domain/playback.dart';
 import '../domain/remote.dart';
 import '../domain/tracks.dart';
@@ -15,6 +16,7 @@ import '../infrastructure/history_repository.dart';
 import '../infrastructure/manual_video_store.dart';
 import '../infrastructure/media_server.dart';
 import '../infrastructure/remote_control_server.dart';
+import '../infrastructure/release_update_service.dart';
 import '../infrastructure/settings_repository.dart';
 import '../infrastructure/sidecar_service.dart';
 
@@ -46,6 +48,7 @@ class AppRuntime {
     required this.mediaServer,
     required this.sidecar,
     required this.remoteServer,
+    required this.releaseUpdates,
     required this.desktop,
     required this.onLog,
   });
@@ -57,6 +60,7 @@ class AppRuntime {
   final LocalMediaServer mediaServer;
   final SidecarService sidecar;
   final RemoteControlServer remoteServer;
+  final ReleaseUpdateService releaseUpdates;
   final DesktopIntegration desktop;
   final void Function(String message) onLog;
 
@@ -122,6 +126,7 @@ class AppRuntime {
           sidecar.searchSongs('', mode: RemoteSearchMode.history),
       onLog: onLog,
     );
+    final releaseUpdates = ReleaseUpdateService(paths: paths);
     return AppRuntimeStartup(
       runtime: AppRuntime._(
         paths: paths,
@@ -131,6 +136,7 @@ class AppRuntime {
         mediaServer: mediaServer,
         sidecar: sidecar,
         remoteServer: remoteServer,
+        releaseUpdates: releaseUpdates,
         desktop: desktop,
         onLog: onLog,
       ),
@@ -144,6 +150,9 @@ class AppRuntime {
 
   /// WebリモコンのLAN向けURLを返します。
   String? get remoteControlUrl => remoteServer.url;
+
+  /// 配布フォルダの構成が自己更新に必要な条件を満たしているか返します。
+  bool get updatesSupported => releaseUpdates.isSupported;
 
   /// ローカル配信、DAM接続、Webリモコンの順で実行サービスを開始します。
   ///
@@ -172,6 +181,18 @@ class AppRuntime {
     final url = remoteControlUrl;
     if (url != null) await desktop.openUrl(url);
   }
+
+  /// 公式GitHub Releasesを確認し、現在版より新しい更新情報だけを返します。
+  Future<AppUpdate?> checkForUpdate() => releaseUpdates.checkForUpdate();
+
+  /// 検証済み更新を取得し、アプリ終了後に置換する別プロセスを起動します。
+  Future<void> prepareUpdate(
+    AppUpdate update, {
+    void Function(double progress)? onProgress,
+  }) => releaseUpdates.downloadAndLaunch(update, onProgress: onProgress);
+
+  /// 前回の自己更新が失敗して旧版へ戻った場合、その診断内容を一度だけ返します。
+  Future<String?> takeLastUpdateFailure() => releaseUpdates.takeLastFailure();
 
   /// 利用者が選んだ動画を管理領域へコピーし、次回再生用ソースへ反映します。
   Future<bool> chooseManualVideo(String videoId) async {
@@ -248,6 +269,7 @@ class AppRuntime {
       firstError ??= error;
       onLog('一時データの削除に失敗しました: $error');
     }
+    releaseUpdates.close();
     if (firstError == null) {
       onLog('パッチを復元し、セッション一時データを削除しました');
     }
