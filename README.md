@@ -9,7 +9,7 @@ Created: 2026-08-22
 
 # DAM for Windows Tools
 
-DAM for Windowsに、動画差し替え・採点表現表示・スマホリモコンを追加する非公式ツールです。
+DAM for Windowsに、採点遅延補正・動画差し替え・採点表現表示・スマホリモコンを追加する非公式ツールです。
 
 ![DAM for Windows Toolsのメイン画面](docs/images/app-main.png)
 
