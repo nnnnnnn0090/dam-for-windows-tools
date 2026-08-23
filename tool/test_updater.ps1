@@ -57,11 +57,9 @@ try {
 
   $archive = Join-Path $update "DAMforWindowsTools-$testVersion-win-x64.zip"
   Compress-Archive -LiteralPath $release -DestinationPath $archive
-  $archiveHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
   & (Join-Path $projectRoot 'assets\updater\update.ps1') `
     -ParentProcessId 2147483646 `
     -ArchivePath $archive `
-    -ExpectedArchiveSha256 $archiveHash `
     -InstallDirectory $install `
     -UpdateDirectory $update `
     -DataDirectoryName 'DAMforWindowsToolsData' `

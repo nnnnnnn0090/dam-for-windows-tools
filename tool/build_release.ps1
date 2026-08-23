@@ -180,7 +180,7 @@ try {
     }
   }
   New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
-  # 過去バージョンの生成物だけを削除し、distを今回公開する4ファイルへ保ちます。
+  # 過去バージョンの生成物だけを削除し、distを今回公開する2つのZIPへ保ちます。
   $releaseArtifactPattern = "^$([regex]::Escape($releaseName))-\d+\.\d+\.\d+-(?:win-x64|source)\.zip(?:\.sha256)?$"
   Get-ChildItem -LiteralPath $distRoot -File |
     Where-Object { $_.Name -match $releaseArtifactPattern } |
@@ -402,28 +402,11 @@ try {
   $zip = Join-Path $distRoot "$releaseName-$releaseVersion-win-x64.zip"
   if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
   Compress-Archive -LiteralPath $releaseRoot -DestinationPath $zip -CompressionLevel Optimal
-  $zipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
-  $zipHashFile = "$zip.sha256"
-  [IO.File]::WriteAllText(
-    $zipHashFile,
-    "$zipHash  $(Split-Path -Leaf $zip)`n",
-    [Text.UTF8Encoding]::new($false)
-  )
   $sourceZip = Join-Path $distRoot "$sourceBundleName.zip"
   if (Test-Path -LiteralPath $sourceZip) { Remove-Item -LiteralPath $sourceZip -Force }
   Compress-Archive -LiteralPath $sourceRoot -DestinationPath $sourceZip -CompressionLevel Optimal
-  $sourceZipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sourceZip).Hash.ToLowerInvariant()
-  $sourceZipHashFile = "$sourceZip.sha256"
-  [IO.File]::WriteAllText(
-    $sourceZipHashFile,
-    "$sourceZipHash  $(Split-Path -Leaf $sourceZip)`n",
-    [Text.UTF8Encoding]::new($false)
-  )
   Write-Host "Release ZIP:    $zip"
-  Write-Host "ZIP checksum:   $zipHashFile"
   Write-Host "Source ZIP:     $sourceZip"
-  Write-Host "Source checksum:$sourceZipHashFile"
-  Get-FileHash -Algorithm SHA256 -LiteralPath $zip
 } finally {
   Pop-Location
   foreach ($stagingRoot in @($releasePackageRoot, $sourcePackageRoot)) {

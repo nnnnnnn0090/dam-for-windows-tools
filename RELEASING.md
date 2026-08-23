@@ -38,12 +38,10 @@ cd dam-for-windows-tools
 .\tool\build_release.ps1 -RequireSignature
 ```
 
-ビルド処理は一時ステージを自動検証してから、`dist/`へ次の4ファイルだけを生成します。
+ビルド処理は一時ステージを自動検証してから、`dist/`へ次の2ファイルだけを生成します。
 
 - `DAMforWindowsTools-1.1.0-win-x64.zip`
-- `DAMforWindowsTools-1.1.0-win-x64.zip.sha256`
 - `DAMforWindowsTools-1.1.0-source.zip`
-- `DAMforWindowsTools-1.1.0-source.zip.sha256`
 
 実行ZIPには実行時ファイル、利用案内、ライセンス、完全性情報だけを含めます。対応ソースと開発者向け文書はソースZIPへ分離し、実行ZIPと同じリリースページで公開してください。展開済み実行フォルダは`dist/`へ残しません。
 
@@ -55,7 +53,6 @@ cd dam-for-windows-tools
 - 対応DAMのハッシュ検証、初回再生、キャッシュ再生、各設定、動画指定、採点、リモコンの検索・予約・演奏操作を確認する
 - 終了後にパッチ復元とセッション削除を確認する
 - `SHA256SUMS.txt`を検証する
-- ZIP自体のSHA-256をリリースページへ掲載する
 - 実行ZIPと対応ソースZIPを必ず同じリリースで公開する
 - GitHubのPrivate vulnerability reportingを有効にする
 - リリースのソースタグとバイナリを同じコミットから生成する

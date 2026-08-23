@@ -9,7 +9,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -20,8 +19,8 @@ import 'app_paths.dart';
 
 /// GitHub Releasesの確認、配布ZIPの検証、Windows更新処理の起動を担当します。
 ///
-/// 更新対象は公式リポジトリの固定名アセットだけに限定し、ZIPの外部SHA-256と
-/// GitHub APIのdigestが提供される場合はそれも一致したときだけ、終了後の置換処理へ進みます。
+/// 更新対象は公式リポジトリの固定名Windows ZIPだけに限定し、展開可能な
+/// 正規リリースを終了後の置換処理へ渡します。
 class ReleaseUpdateService {
   /// アプリの管理パスと専用HTTPクライアントを受け取ります。
   ReleaseUpdateService({required this.paths, HttpClient? client})
@@ -32,7 +31,6 @@ class ReleaseUpdateService {
   }
 
   static const int _maximumReleaseResponseBytes = 1024 * 1024;
-  static const int _maximumChecksumBytes = 4096;
   static const int _maximumArchiveBytes = 512 * 1024 * 1024;
   static const String _repositoryPath = '/nnnnnnn0090/dam-for-windows-tools/';
 
@@ -60,7 +58,7 @@ class ReleaseUpdateService {
     );
   }
 
-  /// 更新ZIPとチェックサムを取得・検証し、親終了を待つ更新スクリプトを起動します。
+  /// 更新ZIPを取得し、親終了を待つ更新スクリプトを起動します。
   Future<void> downloadAndLaunch(
     AppUpdate update, {
     void Function(double progress)? onProgress,
@@ -69,29 +67,8 @@ class ReleaseUpdateService {
       throw StateError('配布フォルダから起動した場合だけ自動更新できます');
     }
     final updateRoot = await _createUpdateDirectory(update.version);
-    final checksumText = utf8.decode(
-      (await _getBytes(
-        update.checksumUri,
-        maximumBytes: _maximumChecksumBytes,
-      ))!,
-    );
-    final expectedHash = _readArchiveChecksum(checksumText, update.archiveName);
-    final apiDigest = update.apiDigest;
-    if (apiDigest != null && apiDigest != expectedHash) {
-      throw StateError('GitHubのdigestとチェックサムファイルが一致しません');
-    }
-
     final archive = File(p.join(updateRoot.path, update.archiveName));
     await _downloadArchive(update, archive, onProgress: onProgress);
-    final actualHash = (await sha256.bind(archive.openRead()).first).toString();
-    if (actualHash != expectedHash) {
-      try {
-        await archive.delete();
-      } on FileSystemException {
-        // 不正ZIPの削除失敗は更新を中断する主原因を上書きしないようにします。
-      }
-      throw StateError('更新ZIPのSHA-256が一致しません');
-    }
     onProgress?.call(1);
 
     final script = File(p.join(updateRoot.path, 'update.ps1'));
@@ -104,7 +81,6 @@ class ReleaseUpdateService {
       updateRoot: updateRoot,
       archive: archive,
       script: script,
-      expectedHash: expectedHash,
     );
   }
 
@@ -142,7 +118,7 @@ class ReleaseUpdateService {
   /// 更新確認に使ったKeep-Alive接続を閉じ、アプリ終了を妨げないようにします。
   void close() => _client.close(force: true);
 
-  /// GitHub最新リリースJSONから、固定名の実行ZIPとSHA-256だけを選択します。
+  /// GitHub最新リリースJSONから、固定名のWindows実行ZIPだけを選択します。
   @visibleForTesting
   static AppUpdate? parseLatestRelease(
     Map<String, dynamic> release, {
@@ -158,38 +134,28 @@ class ReleaseUpdateService {
 
     final archiveName =
         '${AppConfig.releaseArchiveRootName}-$latest-win-x64.zip';
-    final checksumName = '$archiveName.sha256';
     final assets = release['assets'];
     if (assets is! List) {
       throw const FormatException('リリースに配布ファイル一覧がありません');
     }
     Map<String, dynamic>? archiveAsset;
-    Map<String, dynamic>? checksumAsset;
     for (final rawAsset in assets) {
       if (rawAsset is! Map) continue;
       final asset = Map<String, dynamic>.from(rawAsset);
       if (asset['state'] != null && asset['state'] != 'uploaded') continue;
       if (asset['name'] == archiveName) archiveAsset = asset;
-      if (asset['name'] == checksumName) checksumAsset = asset;
     }
-    if (archiveAsset == null || checksumAsset == null) {
+    if (archiveAsset == null) {
       throw FormatException('$latest用のWindows更新ファイルがありません');
     }
 
     final archiveUri = _validatedReleaseAssetUri(archiveAsset);
-    final checksumUri = _validatedReleaseAssetUri(checksumAsset);
     final archiveSize = archiveAsset['size'];
     if (archiveSize is! int ||
         archiveSize <= 0 ||
         archiveSize > _maximumArchiveBytes) {
       throw const FormatException('更新ZIPのサイズが許可範囲外です');
     }
-    final rawDigest = archiveAsset['digest']?.toString().toLowerCase();
-    final apiDigest =
-        rawDigest != null &&
-            RegExp(r'^sha256:[0-9a-f]{64}$').hasMatch(rawDigest)
-        ? rawDigest.substring(7)
-        : null;
     final pageUri = Uri.tryParse(release['html_url']?.toString() ?? '');
     final safePageUri =
         pageUri != null &&
@@ -203,12 +169,10 @@ class ReleaseUpdateService {
     return AppUpdate(
       version: latest,
       archiveUri: archiveUri,
-      checksumUri: checksumUri,
       archiveName: archiveName,
       archiveSize: archiveSize,
       releasePageUri: safePageUri,
       notes: rawNotes.length <= 4000 ? rawNotes : rawNotes.substring(0, 4000),
-      apiDigest: apiDigest,
     );
   }
 
@@ -224,19 +188,6 @@ class ReleaseUpdateService {
       throw const FormatException('更新ファイルの取得先が正しくありません');
     }
     return uri;
-  }
-
-  /// SHA-256ファイルから対象ZIPと完全一致する1行だけを読み取ります。
-  static String _readArchiveChecksum(String text, String archiveName) {
-    final escapedName = RegExp.escape(archiveName);
-    final match = RegExp(
-      '^([0-9a-fA-F]{64})  $escapedName\\s*\$',
-      multiLine: true,
-    ).firstMatch(text.replaceAll('\r\n', '\n'));
-    if (match == null) {
-      throw const FormatException('更新ZIPのSHA-256を取得できません');
-    }
-    return match.group(1)!.toLowerCase();
   }
 
   /// 更新ごとの一時ディレクトリをデータフォルダ内へ安全に作成します。
@@ -383,7 +334,6 @@ class ReleaseUpdateService {
     required Directory updateRoot,
     required File archive,
     required File script,
-    required String expectedHash,
   }) async {
     final windowsRoot = Platform.environment['SystemRoot'];
     if (windowsRoot == null || windowsRoot.trim().isEmpty) {
@@ -415,8 +365,6 @@ class ReleaseUpdateService {
         pid.toString(),
         '-ArchivePath',
         archive.path,
-        '-ExpectedArchiveSha256',
-        expectedHash,
         '-InstallDirectory',
         paths.applicationDirectory.path,
         '-UpdateDirectory',

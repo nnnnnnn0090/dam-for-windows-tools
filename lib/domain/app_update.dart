@@ -60,22 +60,18 @@ class AppUpdate {
   const AppUpdate({
     required this.version,
     required this.archiveUri,
-    required this.checksumUri,
     required this.archiveName,
     required this.archiveSize,
     required this.releasePageUri,
     required this.notes,
-    this.apiDigest,
   });
 
   final AppVersion version;
   final Uri archiveUri;
-  final Uri checksumUri;
   final String archiveName;
   final int archiveSize;
   final Uri releasePageUri;
   final String notes;
-  final String? apiDigest;
 }
 
 /// GUIが更新確認・取得・再起動のどの段階にあるかを表します。

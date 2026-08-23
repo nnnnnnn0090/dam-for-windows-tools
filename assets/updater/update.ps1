@@ -11,7 +11,6 @@
 param(
   [Parameter(Mandatory = $true)][int]$ParentProcessId,
   [Parameter(Mandatory = $true)][string]$ArchivePath,
-  [Parameter(Mandatory = $true)][string]$ExpectedArchiveSha256,
   [Parameter(Mandatory = $true)][string]$InstallDirectory,
   [Parameter(Mandatory = $true)][string]$UpdateDirectory,
   [Parameter(Mandatory = $true)][string]$DataDirectoryName,
@@ -64,8 +63,8 @@ function Read-ReleaseManifest {
   return $entries
 }
 
-# マニフェスト記載ファイルの存在・通常ファイル属性・SHA-256をすべて検証します。
-function Assert-ReleaseFiles {
+# マニフェスト記載ファイルが通常ファイルとしてすべて存在することを確認します。
+function Assert-ReleaseFilesPresent {
   param(
     [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
     [Parameter(Mandatory = $true)][object[]]$Entries
@@ -78,10 +77,6 @@ function Assert-ReleaseFiles {
     $item = Get-Item -LiteralPath $path -Force
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
       throw "Reparse points are not allowed: $($entry.RelativePath)"
-    }
-    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
-    if ($actual -ne $entry.Hash) {
-      throw "Release file checksum mismatch: $($entry.RelativePath)"
     }
   }
 }
@@ -149,14 +144,6 @@ try {
   if (-not ($archiveFull.StartsWith($updateFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase))) {
     throw 'Update archive is outside the update directory'
   }
-  if ($ExpectedArchiveSha256 -notmatch '^[0-9A-Fa-f]{64}$') {
-    throw 'Expected archive checksum is invalid'
-  }
-  $archiveHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archiveFull).Hash.ToLowerInvariant()
-  if ($archiveHash -ne $ExpectedArchiveSha256.ToLowerInvariant()) {
-    throw 'Update archive checksum mismatch'
-  }
-
   $deadline = [DateTime]::UtcNow.AddSeconds(90)
   while (Get-Process -Id $ParentProcessId -ErrorAction SilentlyContinue) {
     if ([DateTime]::UtcNow -ge $deadline) { throw 'The application did not exit in time' }
@@ -181,7 +168,7 @@ try {
     throw 'BUILD_INFO.json version does not match the requested update'
   }
   $newEntries = @(Read-ReleaseManifest -ReleaseDirectory $newReleaseDirectory)
-  Assert-ReleaseFiles -ReleaseDirectory $newReleaseDirectory -Entries $newEntries
+  Assert-ReleaseFilesPresent -ReleaseDirectory $newReleaseDirectory -Entries $newEntries
   $newRelativePaths = @($newEntries | ForEach-Object { $_.RelativePath }) + @('SHA256SUMS.txt')
   Assert-NoProtectedPaths -RelativePaths $newRelativePaths -ProtectedDirectoryName $DataDirectoryName
 
@@ -193,7 +180,7 @@ try {
   Assert-NoProtectedPaths -RelativePaths $oldRelativePaths -ProtectedDirectoryName $DataDirectoryName
   Move-ReleaseFiles -SourceDirectory $installFull -DestinationDirectory $backupDirectory -RelativePaths $oldRelativePaths
   Copy-ReleaseFiles -SourceDirectory $newReleaseDirectory -DestinationDirectory $installFull -RelativePaths $newRelativePaths
-  Assert-ReleaseFiles -ReleaseDirectory $installFull -Entries $newEntries
+  Assert-ReleaseFilesPresent -ReleaseDirectory $installFull -Entries $newEntries
 
   Start-Process -FilePath $installedExecutable -WorkingDirectory $installFull
   try {

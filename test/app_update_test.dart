@@ -25,9 +25,7 @@ void main() {
     expect(AppVersion.tryParse('1.2.3-beta'), isNull);
   });
 
-  test('selects only the exact Windows archive and checksum assets', () {
-    const digest =
-        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  test('selects only the exact Windows archive asset', () {
     final update = ReleaseUpdateService.parseLatestRelease(<String, dynamic>{
       'tag_name': 'v1.2.0',
       'draft': false,
@@ -39,14 +37,7 @@ void main() {
           'name': 'DAMforWindowsTools-1.2.0-win-x64.zip',
           'state': 'uploaded',
           'size': 1024,
-          'digest': 'sha256:$digest',
           'browser_download_url': 'https://github.com/nnnnnnn0090/dam-for-windows-tools/releases/download/v1.2.0/DAMforWindowsTools-1.2.0-win-x64.zip',
-        },
-        <String, Object>{
-          'name': 'DAMforWindowsTools-1.2.0-win-x64.zip.sha256',
-          'state': 'uploaded',
-          'size': 103,
-          'browser_download_url': 'https://github.com/nnnnnnn0090/dam-for-windows-tools/releases/download/v1.2.0/DAMforWindowsTools-1.2.0-win-x64.zip.sha256',
         },
       ],
     }, currentVersion: '1.1.0');
@@ -54,7 +45,6 @@ void main() {
     expect(update, isNotNull);
     expect(update!.version.toString(), '1.2.0');
     expect(update.archiveSize, 1024);
-    expect(update.apiDigest, digest);
   });
 
   test('does not offer the current version again', () {
@@ -78,11 +68,6 @@ void main() {
             'size': 1024,
             'browser_download_url':
                 'https://example.com/DAMforWindowsTools-1.2.0-win-x64.zip',
-          },
-          <String, Object>{
-            'name': 'DAMforWindowsTools-1.2.0-win-x64.zip.sha256',
-            'size': 103,
-            'browser_download_url': 'https://example.com/DAMforWindowsTools-1.2.0-win-x64.zip.sha256',
           },
         ],
       }, currentVersion: '1.1.0'),
