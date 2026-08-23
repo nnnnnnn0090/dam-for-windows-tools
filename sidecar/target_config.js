@@ -27,13 +27,56 @@ export function loadTargetConfiguration(helperDirectory) {
   }
 
   const mediaOrigin = normalizeMediaOrigin(process.env.DAM_TOOLS_MEDIA_ORIGIN);
+  const scoringOverlay = resolveScoringOverlay(
+    helperDirectory,
+    process.env.DAM_TOOLS_APP_ROOT,
+    process.env.DAM_TOOLS_APP_VERSION,
+  );
   return Object.freeze({
     manifest,
     processName,
     supportedHash,
     targetLabel: `DAM for Windows ${fileVersion}`,
-    runtimeConfig: Object.freeze({ mediaOrigin }),
+    runtimeConfig: Object.freeze({ mediaOrigin, scoringOverlay }),
   });
+}
+
+/** 配布版とソース実行の候補を限定し、存在する描画DLLとアイコンだけをAgentへ渡します。 */
+export function resolveScoringOverlay(helperDirectory, applicationRoot, applicationVersion = '') {
+  const helper = path.resolve(String(helperDirectory || ''));
+  const fallbackRoot = path.basename(path.dirname(helper)).toLowerCase() === 'runtime'
+    ? path.resolve(helper, '..', '..')
+    : path.resolve(helper, '..');
+  const root = applicationRoot && path.isAbsolute(String(applicationRoot))
+    ? path.resolve(String(applicationRoot))
+    : fallbackRoot;
+  const versionSuffix = String(applicationVersion).trim().replace(/\./g, '_');
+  const versionedFilename = /^\d+_\d+_\d+$/.test(versionSuffix)
+    ? `dam_scoring_overlay_${versionSuffix}.dll`
+    : '';
+  const filenames = [versionedFilename, 'dam_scoring_overlay.dll']
+    .filter((value) => value !== '');
+  const libraryCandidates = [
+    ...filenames.map((filename) => path.join(root, filename)),
+    ...filenames.map((filename) => path.join(
+      root, 'build', 'windows', 'x64', 'runner', 'Release', filename,
+    )),
+    ...filenames.map((filename) => path.join(
+      root, 'build', 'windows', 'x64', 'runner', 'Profile', filename,
+    )),
+    ...filenames.map((filename) => path.join(
+      root, 'build', 'windows', 'x64', 'runner', 'Debug', filename,
+    )),
+  ];
+  const assetCandidates = [
+    path.join(root, 'data', 'flutter_assets', 'assets', 'scoring'),
+    path.join(root, 'assets', 'scoring'),
+  ];
+  const libraryPath = libraryCandidates.find((candidate) =>
+    fs.existsSync(candidate) && fs.statSync(candidate).isFile()) || '';
+  const assetDirectory = assetCandidates.find((candidate) =>
+    fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) || '';
+  return Object.freeze({ libraryPath, assetDirectory });
 }
 
 /** 動画置換先を認証情報のない127.0.0.1上のHTTP Originだけに制限します。 */

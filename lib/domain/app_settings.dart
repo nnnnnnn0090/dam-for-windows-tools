@@ -18,7 +18,8 @@ class AppSettings {
     this.disableModuleCheck = true,
     this.disableForegroundCheck = true,
     this.replaceVideoUrls = true,
-    this.scoringEnabled = true,
+    this.scoringOverlayEnabled = true,
+    this.scoringShowZeroTechniques = true,
     this.skipEnabled = true,
     this.skipMs = 150,
   });
@@ -30,7 +31,8 @@ class AppSettings {
   final bool disableModuleCheck;
   final bool disableForegroundCheck;
   final bool replaceVideoUrls;
-  final bool scoringEnabled;
+  final bool scoringOverlayEnabled;
+  final bool scoringShowZeroTechniques;
   final bool skipEnabled;
   final int skipMs;
 
@@ -51,7 +53,8 @@ class AppSettings {
     bool? disableModuleCheck,
     bool? disableForegroundCheck,
     bool? replaceVideoUrls,
-    bool? scoringEnabled,
+    bool? scoringOverlayEnabled,
+    bool? scoringShowZeroTechniques,
     bool? skipEnabled,
     int? skipMs,
   }) {
@@ -60,7 +63,10 @@ class AppSettings {
       disableForegroundCheck:
           disableForegroundCheck ?? this.disableForegroundCheck,
       replaceVideoUrls: replaceVideoUrls ?? this.replaceVideoUrls,
-      scoringEnabled: scoringEnabled ?? this.scoringEnabled,
+      scoringOverlayEnabled:
+          scoringOverlayEnabled ?? this.scoringOverlayEnabled,
+      scoringShowZeroTechniques:
+          scoringShowZeroTechniques ?? this.scoringShowZeroTechniques,
       skipEnabled: skipEnabled ?? this.skipEnabled,
       skipMs: skipMs ?? this.skipMs,
     );
@@ -71,7 +77,8 @@ class AppSettings {
     'disableModuleCheck': disableModuleCheck,
     'disableForegroundCheck': disableForegroundCheck,
     'replaceVideoUrls': replaceVideoUrls,
-    'scoringEnabled': scoringEnabled,
+    'scoringOverlayEnabled': scoringOverlayEnabled,
+    'scoringShowZeroTechniques': scoringShowZeroTechniques,
     'skipEnabled': skipEnabled,
     'skipMs': normalizedSkipMs,
   };
@@ -83,7 +90,12 @@ class AppSettings {
       disableModuleCheck: json['disableModuleCheck'] as bool? ?? true,
       disableForegroundCheck: json['disableForegroundCheck'] as bool? ?? true,
       replaceVideoUrls: json['replaceVideoUrls'] as bool? ?? true,
-      scoringEnabled: json['scoringEnabled'] as bool? ?? true,
+      scoringOverlayEnabled:
+          json['scoringOverlayEnabled'] as bool? ??
+          json['scoringEnabled'] as bool? ??
+          true,
+      scoringShowZeroTechniques:
+          json['scoringShowZeroTechniques'] as bool? ?? true,
       skipEnabled: json['skipEnabled'] as bool? ?? true,
       skipMs: rawSkip is num
           ? rawSkip.toInt().clamp(minimumSkipMs, maximumSkipMs)

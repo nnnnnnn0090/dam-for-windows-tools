@@ -14,6 +14,7 @@ import test from 'node:test';
 import {
   loadTargetConfiguration,
   normalizeMediaOrigin,
+  resolveScoringOverlay,
   targetManifestFilename,
 } from '../target_config.js';
 
@@ -27,6 +28,25 @@ test('accepts only an unauthenticated loopback HTTP origin', () => {
     'http://user:pass@127.0.0.1:8765',
   ]) {
     assert.throws(() => normalizeMediaOrigin(value));
+  }
+});
+
+// 配布版のDLLとFlutter内アイコンを、利用者データではなくアプリルートから解決します。
+test('resolves the packaged native scoring overlay from the application root', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dam-tools-overlay-'));
+  try {
+    const helper = path.join(root, 'runtime', 'helper');
+    const assets = path.join(root, 'data', 'flutter_assets', 'assets', 'scoring');
+    fs.mkdirSync(helper, { recursive: true });
+    fs.mkdirSync(assets, { recursive: true });
+    fs.writeFileSync(path.join(root, 'dam_scoring_overlay_1_1_4.dll'), 'fixture');
+    fs.writeFileSync(path.join(root, 'dam_scoring_overlay.dll'), 'old fixture');
+    const resolved = resolveScoringOverlay(helper, root, '1.1.4');
+    assert.equal(resolved.libraryPath,
+      path.join(root, 'dam_scoring_overlay_1_1_4.dll'));
+    assert.equal(resolved.assetDirectory, assets);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 

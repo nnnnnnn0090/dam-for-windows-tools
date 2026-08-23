@@ -16,12 +16,24 @@ test('normalizes helper configuration to secure enabled defaults', () => {
     disableModuleCheck: true,
     disableForegroundCheck: true,
     replaceVideoUrls: true,
-    scoringEnabled: true,
+    scoringOverlayEnabled: true,
+    scoringShowZeroTechniques: true,
   });
   assert.deepEqual(normalizeConfig({ replaceVideoUrls: false }), {
     disableModuleCheck: true,
     disableForegroundCheck: true,
     replaceVideoUrls: false,
-    scoringEnabled: true,
+    scoringOverlayEnabled: true,
+    scoringShowZeroTechniques: true,
+  });
+  assert.deepEqual(normalizeConfig({
+    scoringOverlayEnabled: false,
+    scoringShowZeroTechniques: false,
+  }), {
+    disableModuleCheck: true,
+    disableForegroundCheck: true,
+    replaceVideoUrls: true,
+    scoringOverlayEnabled: false,
+    scoringShowZeroTechniques: false,
   });
 });

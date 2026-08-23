@@ -36,6 +36,24 @@ void main() {
     expect(const AppSettings(skipMs: 30000).effectiveSkipMs, 30000);
   });
 
+  test('scoring overlay settings default on and migrate the old key', () {
+    const defaults = AppSettings();
+    expect(defaults.scoringOverlayEnabled, isTrue);
+    expect(defaults.scoringShowZeroTechniques, isTrue);
+    expect(
+      AppSettings.fromJson(<String, dynamic>{'scoringEnabled': false})
+          .scoringOverlayEnabled,
+      isFalse,
+    );
+    expect(
+      const AppSettings(
+        scoringOverlayEnabled: false,
+        scoringShowZeroTechniques: false,
+      ).toJson(),
+      containsPair('scoringOverlayEnabled', false),
+    );
+  });
+
   test('history persists only ID, artist and title', () {
     final record = TrackRecord.fromJson(<String, dynamic>{
       'videoId': '6184-92',

@@ -84,6 +84,20 @@
       "expectedPrefix": "40534883ec20488bd94885c97518448d41fe488d1517cd3a00e8fedf100033c0",
       "meaning": "CRI Karaoke Saiten Engine manager stop"
     },
+    "scoringDisplayStart": {
+      "rva": "0x0be5bb",
+      "expectedPrefix": "c605a56a490200",
+      "activeStateRva": "0x2555067",
+      "activeValue": 0,
+      "meaning": "native singing-technique display becomes active after the scoring scene has finished initializing"
+    },
+    "scoringDisplayStop": {
+      "rva": "0x0be746",
+      "expectedPrefix": "c6051a69490201",
+      "activeStateRva": "0x2555067",
+      "inactiveValue": 1,
+      "meaning": "native singing-technique display becomes inactive immediately after scoring finalization"
+    },
     "realtimeVocalOrnament": {
       "rva": "0x1a7dd0",
       "expectedPrefix": "40534881ec50020000488b05485745004833c44889842440020000488bda4885",

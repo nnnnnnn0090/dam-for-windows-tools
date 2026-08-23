@@ -23,9 +23,11 @@ if (-not (Test-Path -LiteralPath $release -PathType Container)) {
   throw "Release folder does not exist: $release"
 }
 $releaseConfig = Get-Content -LiteralPath (Join-Path $projectRoot 'tool\release_config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$overlayFilename = 'dam_scoring_overlay_' + ($releaseConfig.releaseVersion -replace '\.', '_') + '.dll'
 
 $requiredFiles = @(
   'DAMforWindowsTools.exe',
+  $overlayFilename,
   'README.md',
   'LICENSE',
   'LEGAL_NOTICE.md',
@@ -57,6 +59,7 @@ $requiredFiles = @(
   'runtime\helper\agent\10_playback.js',
   'runtime\helper\agent\20_remote_playback.js',
   'runtime\helper\agent\30_scoring.js',
+  'runtime\helper\agent\35_scoring_overlay.js',
   'runtime\helper\agent\40_remote_requests.js',
   'runtime\helper\agent\50_remote_hooks.js',
   'runtime\helper\agent\60_validation.js',
@@ -125,7 +128,7 @@ $sidecarSources = @(
   'main.js','agent_session.js','agent_source.js','command_router.js',
   'helper_config.js','helper_protocol.js','identity.js','target_config.js','target_discovery.js',
   'agent\00_runtime.js','agent\10_playback.js','agent\20_remote_playback.js',
-  'agent\30_scoring.js','agent\40_remote_requests.js','agent\50_remote_hooks.js',
+  'agent\30_scoring.js','agent\35_scoring_overlay.js','agent\40_remote_requests.js','agent\50_remote_hooks.js',
   'agent\60_validation.js','agent\70_rpc_exports.js'
 )
 foreach ($sidecarSource in $sidecarSources) {

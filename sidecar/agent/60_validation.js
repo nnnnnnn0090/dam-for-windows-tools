@@ -8,7 +8,14 @@
 /** フック・内部関数・パッチの全期待命令列を確認し、一致しなければ初期化を中止します。 */
 function validateHooks() {
   verifyPrefix('playerSetFile', DAM_TARGET_MANIFEST.hooks.playerSetFile);
-  verifyPrefix('scoringStart', DAM_TARGET_MANIFEST.hooks.scoringStart);
+  verifyPrefix(
+    'scoringDisplayStart',
+    DAM_TARGET_MANIFEST.hooks.scoringDisplayStart,
+  );
+  verifyPrefix(
+    'scoringDisplayStop',
+    DAM_TARGET_MANIFEST.hooks.scoringDisplayStop,
+  );
   verifyPrefix('scoringStop', DAM_TARGET_MANIFEST.hooks.scoringStop);
   verifyPrefix(
     'realtimeVocalOrnament',

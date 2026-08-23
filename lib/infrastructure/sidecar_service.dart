@@ -39,6 +39,10 @@ class SidecarService {
         ...Platform.environment,
         'NODE_NO_WARNINGS': '1',
         'DAM_TOOLS_MEDIA_ORIGIN': AppConfig.mediaServerOrigin,
+        // Node側が配布版と開発版の描画DLL・アイコンを同じ基準で解決します。
+        'DAM_TOOLS_APP_ROOT': paths.applicationDirectory.path,
+        // DAMに旧DLLが残る更新直後も、新しい版固有DLLを確実に選べるようにします。
+        'DAM_TOOLS_APP_VERSION': AppConfig.productVersion,
       },
       onMessage: _handleMessage,
       onExit: _handleExit,

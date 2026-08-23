@@ -18,6 +18,7 @@ export const agentFragmentNames = Object.freeze([
   '10_playback.js',
   '20_remote_playback.js',
   '30_scoring.js',
+  '35_scoring_overlay.js',
   '40_remote_requests.js',
   '50_remote_hooks.js',
   '60_validation.js',

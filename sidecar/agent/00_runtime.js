@@ -15,7 +15,10 @@ let requestSequence = 0;
 let initialized = false;
 let hooksInstalled = false;
 let scoringSessionActive = false;
+let scoringPauseActive = false;
 let lastOrnamentTimestamp = -1;
+let scoringOverlayApi = null;
+let scoringOverlayHeartbeatTimer = null;
 let pendingRemoteSearch = null;
 let pendingRemoteDetail = null;
 let pendingRemoteReservation = null;
@@ -29,7 +32,8 @@ let config = {
   disableModuleCheck: true,
   disableForegroundCheck: true,
   replaceVideoUrls: true,
-  scoringEnabled: true,
+  scoringOverlayEnabled: true,
+  scoringShowZeroTechniques: true,
 };
 
 const LOCAL_PREFIX = `${DAM_RUNTIME_CONFIG.mediaOrigin}/v1/`;
@@ -303,13 +307,16 @@ function normalizeConfig(next) {
     disableModuleCheck: source.disableModuleCheck !== false,
     disableForegroundCheck: source.disableForegroundCheck !== false,
     replaceVideoUrls: source.replaceVideoUrls !== false,
-    scoringEnabled: source.scoringEnabled !== false,
+    scoringOverlayEnabled:
+      source.scoringOverlayEnabled !== false && source.scoringEnabled !== false,
+    scoringShowZeroTechniques: source.scoringShowZeroTechniques !== false,
   };
 }
 
 /** 設定変更を既知パッチと採点セッションへ反映します。 */
 function applyConfig(next) {
-  const wasScoringEnabled = config.scoringEnabled;
+  const wasOverlayEnabled = config.scoringOverlayEnabled;
+  const previousShowZero = config.scoringShowZeroTechniques;
   config = normalizeConfig(next);
   setPatch('moduleCheck', DAM_TARGET_MANIFEST.patches.moduleCheck, config.disableModuleCheck);
   setPatch(
@@ -322,16 +329,20 @@ function applyConfig(next) {
     DAM_TARGET_MANIFEST.patches.foregroundTransition,
     config.disableForegroundCheck,
   );
-  if (wasScoringEnabled && !config.scoringEnabled) {
-    finishScoringSession();
+  if (previousShowZero !== config.scoringShowZeroTechniques) {
+    setDamScoringOverlayShowZero(config.scoringShowZeroTechniques);
   }
-  if (!wasScoringEnabled && config.scoringEnabled) {
-    lastOrnamentTimestamp = -1;
+  if (wasOverlayEnabled && !config.scoringOverlayEnabled) {
+    hideDamScoringOverlay();
+  } else if (!wasOverlayEnabled && config.scoringOverlayEnabled &&
+             scoringSessionActive) {
+    showDamScoringOverlay();
   }
   emitLog(
     `機能更新: module=${config.disableModuleCheck}, ` +
       `foreground=${config.disableForegroundCheck}, video=${config.replaceVideoUrls}, ` +
-      `scoring=${config.scoringEnabled}`,
+      `scoringOverlay=${config.scoringOverlayEnabled}, ` +
+      `scoringZero=${config.scoringShowZeroTechniques}`,
   );
 }
 

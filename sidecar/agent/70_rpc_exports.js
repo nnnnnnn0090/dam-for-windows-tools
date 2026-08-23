@@ -12,6 +12,7 @@ rpc.exports = {
     validateHooks();
     applyConfig(next);
     installNativeHooks();
+    installDamScoringOverlay();
     installScoringHooks();
     installRemoteControlHooks();
     hooksInstalled = true;
@@ -35,6 +36,7 @@ rpc.exports = {
     currentVideoId = '';
     remoteSearchRows.clear();
     finishScoringSession();
+    uninstallDamScoringOverlay();
     restorePatches();
     // 関数置換はスクリプト破棄まで維持し、終了中の遅延応答がDAM本体UIへ
     // すり抜けてモーダルや画面遷移を起こさないようにします。

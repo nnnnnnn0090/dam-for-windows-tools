@@ -54,6 +54,9 @@ endfunction()
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
+# DAMの採点画面へ歌唱技法を重ねる、注入用のネイティブ描画モジュールです。
+add_subdirectory("scoring_overlay")
+
 # アプリRunner本体のビルド定義を読み込みます。
 add_subdirectory("runner")
 
@@ -75,6 +78,10 @@ set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  COMPONENT Runtime)
+
+# Frida Agentから絶対パスで読み込めるよう、描画モジュールをEXEと同じ場所へ配置します。
+install(TARGETS dam_scoring_overlay RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"

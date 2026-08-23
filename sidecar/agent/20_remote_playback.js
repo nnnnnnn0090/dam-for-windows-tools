@@ -193,9 +193,15 @@ function performRemoteControl(action) {
       );
       setPause(requestedPause ? 1 : 0, 0);
     }
+    // Agent自身のNativeFunction呼び出しはInterceptor通知に依存せず、表示状態を明示同期します。
+    scoringPauseActive = requestedPause;
+    if (requestedPause) hideDamScoringOverlay();
+    else if (scoringSessionActive) showDamScoringOverlay();
   } else if (action === 'stop') {
     const stop = new NativeFunction(rva(descriptor.stopRva), 'void', []);
     stop();
+    // Webリモコン経路は同一Agent内から停止関数を呼ぶため、成功直後に採点表示も終了します。
+    finishScoringSession();
   } else if (action === 'restart') {
     const restart = new NativeFunction(rva(descriptor.restartRva), 'void', []);
     restart();

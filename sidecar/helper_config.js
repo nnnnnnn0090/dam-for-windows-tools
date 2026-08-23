@@ -12,6 +12,8 @@ export function normalizeConfig(value) {
     disableModuleCheck: source.disableModuleCheck !== false,
     disableForegroundCheck: source.disableForegroundCheck !== false,
     replaceVideoUrls: source.replaceVideoUrls !== false,
-    scoringEnabled: source.scoringEnabled !== false,
+    scoringOverlayEnabled:
+      source.scoringOverlayEnabled !== false && source.scoringEnabled !== false,
+    scoringShowZeroTechniques: source.scoringShowZeroTechniques !== false,
   };
 }

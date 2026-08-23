@@ -24,6 +24,14 @@ class ScoringGrid extends StatelessWidget {
   /// タイル幅だけを可変にし、アイコン・名称・回数の位置を揃えたグリッドを構築します。
   @override
   Widget build(BuildContext context) {
+    if (counts.isEmpty) {
+      return const Center(
+        child: Text(
+          '歌唱技法を検出すると表示されます',
+          style: TextStyle(fontSize: 12, color: Color(0xff858b94)),
+        ),
+      );
+    }
     return GridView.builder(
       key: const Key('scoring-technique-grid'),
       padding: const EdgeInsets.all(10),

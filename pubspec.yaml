@@ -13,7 +13,7 @@ publish_to: 'none' # pub.devへ公開する場合だけこの行を削除しま�
 # アプリ版は`メジャー.マイナー.パッチ+ビルド番号`で定義します。
 # `flutter build`の`--build-name`と`--build-number`で上書きできます。
 # Windowsではbuild-nameが製品・ファイル版の3要素、build-numberが末尾になります。
-version: 1.1.3+5
+version: 1.1.4+6
 
 environment:
   sdk: ^3.13.1

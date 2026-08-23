@@ -26,7 +26,7 @@ class ScoringPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = controller.settings;
-    final counts = canonicalScoringTechniqueIds
+    final allCounts = canonicalScoringTechniqueIds
         .map(
           (techniqueId) => MapEntry<int, int>(
             techniqueId,
@@ -34,7 +34,10 @@ class ScoringPage extends StatelessWidget {
           ),
         )
         .toList(growable: false);
-    final total = counts.fold<int>(0, (sum, entry) => sum + entry.value);
+    final counts = settings.scoringShowZeroTechniques
+        ? allCounts
+        : allCounts.where((entry) => entry.value > 0).toList(growable: false);
+    final total = allCounts.fold<int>(0, (sum, entry) => sum + entry.value);
     final last = controller.lastScoringEvent;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
@@ -48,14 +51,28 @@ class ScoringPage extends StatelessWidget {
                 children: <Widget>[
                   const SizedBox(width: 10),
                   SizedBox(
-                    width: 330,
+                    width: 300,
                     child: SettingCheckbox(
-                      label: '採点表示',
-                      description: 'しゃくり・ビブラートなどの検知結果を表示します。DAM本体の採点設定とは別です。',
-                      value: settings.scoringEnabled,
+                      label: 'DAM画面に表示',
+                      description: '歌唱技法の回数をDAM本体の採点画面へ重ねて表示します。',
+                      value: settings.scoringOverlayEnabled,
                       onChanged: (value) => unawaited(
                         controller.updateSettings(
-                          settings.copyWith(scoringEnabled: value),
+                          settings.copyWith(scoringOverlayEnabled: value),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const VerticalDivider(),
+                  SizedBox(
+                    width: 300,
+                    child: SettingCheckbox(
+                      label: '0回の技法も表示',
+                      description: 'まだ検出されていない歌唱技法も薄く並べ、最初から全種類を表示します。',
+                      value: settings.scoringShowZeroTechniques,
+                      onChanged: (value) => unawaited(
+                        controller.updateSettings(
+                          settings.copyWith(scoringShowZeroTechniques: value),
                         ),
                       ),
                     ),

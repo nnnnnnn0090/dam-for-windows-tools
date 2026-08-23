@@ -38,6 +38,60 @@ test('composes a classic Frida script without ES module exports', () => {
   assert.doesNotMatch(source, /^(?:\s*)export\s/m);
   assert.doesNotThrow(() => new Function(source));
   assert.match(source, /function extractVideoAssetId\(value\)/);
+  assert.match(source, /function installDamScoringOverlay\(\)/);
+});
+
+// 追加グリッドの寿命がCRIエンジンではなく、本体の歌唱表現表示に同期することを固定します。
+test('scoring overlay follows the native singing-technique display lifecycle', () => {
+  const manifest = JSON.parse(fs.readFileSync(
+    new URL('../supported-dam.json', import.meta.url),
+    'utf8',
+  ));
+  const scoringSource = fs.readFileSync(
+    new URL('../agent/30_scoring.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.deepEqual(manifest.hooks.scoringDisplayStart, {
+    rva: '0x0be5bb',
+    expectedPrefix: 'c605a56a490200',
+    activeStateRva: '0x2555067',
+    activeValue: 0,
+    meaning: 'native singing-technique display becomes active after the scoring scene has finished initializing',
+  });
+  assert.deepEqual(manifest.hooks.scoringDisplayStop, {
+    rva: '0x0be746',
+    expectedPrefix: 'c6051a69490201',
+    activeStateRva: '0x2555067',
+    inactiveValue: 1,
+    meaning: 'native singing-technique display becomes inactive immediately after scoring finalization',
+  });
+  assert.match(scoringSource, /hooks\.scoringDisplayStart/);
+  assert.match(scoringSource, /hooks\.scoringDisplayStop/);
+  assert.match(scoringSource, /hooks\.scoringStop/);
+  assert.match(scoringSource, /playback\.pauseRva/);
+  assert.match(scoringSource, /playback\.stopRva/);
+  assert.doesNotMatch(scoringSource, /hooks\.scoringStart/);
+});
+
+// Agent自身から呼ぶ停止・一時停止でも、Interceptorの再入通知に依存せず表示が同期することを固定します。
+test('remote playback controls explicitly synchronize the scoring overlay', () => {
+  const playbackSource = fs.readFileSync(
+    new URL('../agent/20_remote_playback.js', import.meta.url),
+    'utf8',
+  );
+
+  const stopStart = playbackSource.indexOf("action === 'stop'");
+  const stopEnd = playbackSource.indexOf("action === 'restart'", stopStart);
+  const stopBranch = playbackSource.substring(stopStart, stopEnd);
+  assert.notEqual(stopStart, -1);
+  assert.notEqual(stopEnd, -1);
+  assert.match(stopBranch, /stop\(\);/);
+  assert.match(stopBranch, /finishScoringSession\(\);/);
+  assert.match(
+    playbackSource,
+    /setPause\([\s\S]*?scoringPauseActive = requestedPause;[\s\S]*?hideDamScoringOverlay\(\)/,
+  );
 });
 
 // DAM履歴が検証済み一覧経路と曲詳細経路を使用することを検証します。
