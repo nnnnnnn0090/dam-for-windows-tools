@@ -19,6 +19,7 @@ void main() {
     final second = await provider.load();
     expect(identical(first, second), isTrue);
     expect(first, contains(AppConfig.productName));
+    expect(first, contains('v${AppConfig.productVersion}'));
     expect(first, contains('async function api('));
     expect(first, contains('id="icon-search"'));
     expect(first, contains('href="#icon-list-music"'));

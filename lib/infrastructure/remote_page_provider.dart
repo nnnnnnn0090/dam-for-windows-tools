@@ -30,6 +30,7 @@ class RemotePageProvider {
         .replaceAll('{{REMOTE_SCRIPT}}', assets[2])
         .replaceAll('{{REMOTE_ICONS}}', assets[3])
         .replaceAll('{{PRODUCT_NAME}}', AppConfig.productName)
+        .replaceAll('{{PRODUCT_VERSION}}', AppConfig.productVersion)
         .replaceAll('{{REMOTE_NAME}}', AppConfig.remoteName);
     if (RegExp(r'\{\{[A-Z_]+\}\}').hasMatch(page)) {
       throw StateError('リモコン画面のテンプレート展開に失敗しました');
