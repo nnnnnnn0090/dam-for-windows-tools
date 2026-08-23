@@ -57,12 +57,14 @@ try {
   Write-TestManifest -Root $release -RelativePaths @('BUILD_INFO.json', 'DAMforWindowsTools.exe', 'new.txt')
 
   $archive = Join-Path $update "DAMforWindowsTools-$testVersion-win-x64.zip"
+  $ready = Join-Path $update 'update-ready.txt'
   Compress-Archive -LiteralPath $release -DestinationPath $archive
   & (Join-Path $projectRoot 'assets\updater\update.ps1') `
     -ParentProcessId 2147483646 `
     -ArchivePath $archive `
     -InstallDirectory $install `
     -UpdateDirectory $update `
+    -ReadyPath $ready `
     -DataDirectoryName 'DAMforWindowsToolsData' `
     -ExecutableName 'DAMforWindowsTools.exe' `
     -ExpectedRootName 'DAMforWindowsTools' `

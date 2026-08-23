@@ -13,6 +13,7 @@ param(
   [Parameter(Mandatory = $true)][string]$ArchivePath,
   [Parameter(Mandatory = $true)][string]$InstallDirectory,
   [Parameter(Mandatory = $true)][string]$UpdateDirectory,
+  [Parameter(Mandatory = $true)][string]$ReadyPath,
   [Parameter(Mandatory = $true)][string]$DataDirectoryName,
   [Parameter(Mandatory = $true)][string]$ExecutableName,
   [Parameter(Mandatory = $true)][string]$ExpectedRootName,
@@ -150,6 +151,11 @@ try {
   if (-not ($archiveFull.StartsWith($updateFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase))) {
     throw 'Update archive is outside the update directory'
   }
+  $readyFull = [IO.Path]::GetFullPath($ReadyPath)
+  if (-not $readyFull.StartsWith($updateFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Update ready marker is outside the update directory'
+  }
+  Set-Content -LiteralPath $readyFull -Value 'ready' -NoNewline -Encoding ascii
   $deadline = [DateTime]::UtcNow.AddSeconds(90)
   while (Get-Process -Id $ParentProcessId -ErrorAction SilentlyContinue) {
     if ([DateTime]::UtcNow -ge $deadline) { throw 'The application did not exit in time' }
@@ -169,7 +175,7 @@ try {
     throw 'Updated executable is missing'
   }
   $buildInfoPath = Join-Path $newReleaseDirectory 'BUILD_INFO.json'
-  $buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw | ConvertFrom-Json
+  $buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw -Encoding UTF8 | ConvertFrom-Json
   if ($buildInfo.releaseVersion -ne $ExpectedVersion) {
     throw 'BUILD_INFO.json version does not match the requested update'
   }

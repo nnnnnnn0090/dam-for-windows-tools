@@ -16,6 +16,7 @@ import 'package:path/path.dart' as p;
 import '../config/app_config.dart';
 import '../domain/app_update.dart';
 import 'app_paths.dart';
+import 'windows_updater_launcher.dart';
 
 /// GitHub Releasesの確認、配布ZIPの検証、Windows更新処理の起動を担当します。
 ///
@@ -23,8 +24,12 @@ import 'app_paths.dart';
 /// 正規リリースを終了後の置換処理へ渡します。
 class ReleaseUpdateService {
   /// アプリの管理パスと専用HTTPクライアントを受け取ります。
-  ReleaseUpdateService({required this.paths, HttpClient? client})
-    : _client = client ?? HttpClient() {
+  ReleaseUpdateService({
+    required this.paths,
+    HttpClient? client,
+    WindowsUpdaterLauncher? updaterLauncher,
+  }) : _client = client ?? HttpClient(),
+       _updaterLauncher = updaterLauncher ?? WindowsUpdaterLauncher() {
     _client.connectionTimeout = const Duration(seconds: 15);
     _client.idleTimeout = const Duration(seconds: 15);
     _client.autoUncompress = true;
@@ -36,6 +41,7 @@ class ReleaseUpdateService {
 
   final AppPaths paths;
   final HttpClient _client;
+  final WindowsUpdaterLauncher _updaterLauncher;
 
   /// 配布フォルダとして必要なEXEとruntimeが揃い、自己更新できる状態か返します。
   bool get isSupported => Platform.isWindows && paths.isPackagedApplication;
@@ -351,16 +357,13 @@ class ReleaseUpdateService {
     if (!await powershell.exists()) {
       throw StateError('Windows PowerShellが見つかりません');
     }
-    await Process.start(
-      powershell.path,
-      <String>[
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        script.path,
+    final ready = File(p.join(updateRoot.path, 'update-ready.txt'));
+    await _updaterLauncher.launch(
+      powershell: powershell,
+      script: script,
+      readyMarker: ready,
+      workingDirectory: paths.applicationDirectory,
+      scriptArguments: <String>[
         '-ParentProcessId',
         pid.toString(),
         '-ArchivePath',
@@ -369,6 +372,8 @@ class ReleaseUpdateService {
         paths.applicationDirectory.path,
         '-UpdateDirectory',
         updateRoot.path,
+        '-ReadyPath',
+        ready.path,
         '-DataDirectoryName',
         AppConfig.dataDirectoryName,
         '-ExecutableName',
@@ -378,8 +383,6 @@ class ReleaseUpdateService {
         '-ExpectedVersion',
         update.version.toString(),
       ],
-      mode: ProcessStartMode.detached,
-      workingDirectory: paths.applicationDirectory.path,
     );
   }
 
