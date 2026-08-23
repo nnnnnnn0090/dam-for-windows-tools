@@ -103,6 +103,76 @@ void main() {
   );
 
   test(
+    'shares and caches one sidecar command for repeated song details',
+    () async {
+      final commands = <Map<String, dynamic>>[];
+      final broker = RemoteRequestBroker(
+        send: commands.add,
+        isRunning: () => true,
+      );
+
+      final first = broker.songDetail('result_1');
+      final second = broker.songDetail('result_1');
+      expect(identical(first, second), isTrue);
+      expect(commands, hasLength(1));
+
+      broker.handleEvent(<String, dynamic>{
+        'type': 'remote-detail-result',
+        'requestId': commands.single['requestId'],
+        'detail': <String, Object>{
+          'videoId': '3246-51',
+          'startLyric': '夢ならば',
+          'originalKey': 0,
+          'playTypes': <String>['standard'],
+        },
+      });
+      expect((await first).videoId, '3246-51');
+      expect((await second).startLyric, '夢ならば');
+
+      expect((await broker.songDetail('result_1')).videoId, '3246-51');
+      expect(commands, hasLength(1));
+    },
+  );
+
+  test('serializes commands that share the DAM remote request slot', () async {
+    final commands = <Map<String, dynamic>>[];
+    final broker = RemoteRequestBroker(
+      send: commands.add,
+      isRunning: () => true,
+    );
+
+    final detail = broker.songDetail('result_1');
+    final search = broker.searchSongs('Lemon');
+    expect(commands.map((command) => command['type']), <String>[
+      'remoteDetail',
+    ]);
+
+    broker.handleEvent(<String, dynamic>{
+      'type': 'remote-detail-result',
+      'requestId': commands.single['requestId'],
+      'detail': <String, Object>{
+        'videoId': '3246-51',
+        'startLyric': '',
+        'originalKey': 0,
+        'playTypes': <String>['standard'],
+      },
+    });
+    await detail;
+    await Future<void>.delayed(Duration.zero);
+    expect(commands.map((command) => command['type']), <String>[
+      'remoteDetail',
+      'remoteSearch',
+    ]);
+
+    broker.handleEvent(<String, dynamic>{
+      'type': 'remote-search-result',
+      'requestId': commands.last['requestId'],
+      'rows': const <Map<String, Object>>[],
+    });
+    expect(await search, isEmpty);
+  });
+
+  test(
     'allows a yes/no response only through the confirmed action names',
     () async {
       Map<String, dynamic>? command;

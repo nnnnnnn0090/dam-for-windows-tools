@@ -141,6 +141,16 @@ class RemoteControlServer {
       await RemoteHttp.problem(request, 400, error.message.toString());
     } on TimeoutException {
       await RemoteHttp.problem(request, 504, 'DAMから応答がありません');
+    } on StateError catch (error) {
+      final detail = error.message.toString();
+      onLog('リモコンのDAM操作に失敗しました: $detail');
+      if (detail.contains('invalid or expired search result')) {
+        await RemoteHttp.problem(request, 409, '検索結果が更新されました。もう一度検索してください');
+      } else if (detail.contains('another remote request is running')) {
+        await RemoteHttp.problem(request, 409, '別のリモコン操作を処理中です。少し待ってください');
+      } else {
+        await RemoteHttp.problem(request, 503, 'DAMの操作を完了できませんでした');
+      }
     } on Object catch (error) {
       onLog('リモコン要求に失敗しました: $error');
       await RemoteHttp.problem(request, 503, 'DAMに接続できません');

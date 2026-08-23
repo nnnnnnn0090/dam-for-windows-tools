@@ -37,7 +37,10 @@ if (-not $msvcRuntimeFiles -or $msvcRuntimeFiles.Count -eq 0 -or
 }
 $msvcRuntime = Find-VisualCppAppLocalRuntime -RequiredFiles $msvcRuntimeFiles
 $dumpBin = Find-DumpBin -VisualStudioPath $msvcRuntime.VisualStudioPath
-$pubspecText = Get-Content -LiteralPath (Join-Path $projectRoot 'pubspec.yaml') -Raw
+# Windows PowerShell 5.1はBOMなしUTF-8を既定コードページで読むため、
+# 日本語コメント直後の改行を誤復号しないよう文字コードを明示します。
+
+$pubspecText = Get-Content -LiteralPath (Join-Path $projectRoot 'pubspec.yaml') -Raw -Encoding UTF8
 if ($pubspecText -notmatch '(?m)^version:\s*([^+\s]+)') { throw 'pubspec.yaml version is missing' }
 if ($Matches[1] -ne $releaseVersion) { throw 'pubspec.yaml and release_config.json versions differ' }
 $sidecarPackage = Get-Content -LiteralPath (Join-Path $projectRoot 'sidecar\package.json') -Raw | ConvertFrom-Json
@@ -46,7 +49,7 @@ if ($sidecarPackage.version -ne $releaseVersion -or
     $sidecarPackage.dependencies.frida -ne $fridaVersion) {
   throw 'sidecar/package.json and release_config.json versions differ'
 }
-$appConfigText = Get-Content -LiteralPath (Join-Path $projectRoot 'lib\config\app_config.dart') -Raw
+$appConfigText = Get-Content -LiteralPath (Join-Path $projectRoot 'lib\config\app_config.dart') -Raw -Encoding UTF8
 if ($appConfigText -notmatch "static const productVersion = '$([regex]::Escape($releaseVersion))';") {
   throw 'AppConfig.productVersion and release_config.json versions differ'
 }

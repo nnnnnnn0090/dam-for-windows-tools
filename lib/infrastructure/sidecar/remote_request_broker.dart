@@ -38,7 +38,14 @@ class RemoteRequestBroker {
   final Random _secureRandom = Random.secure();
   final Map<String, _PendingRequest<dynamic>> _pending =
       <String, _PendingRequest<dynamic>>{};
+  final List<_QueuedRemoteOperation<dynamic>> _remoteOperations =
+      <_QueuedRemoteOperation<dynamic>>[];
+  final Map<String, RemoteSongDetail> _detailCache =
+      <String, RemoteSongDetail>{};
+  final Map<String, Future<RemoteSongDetail>> _detailRequests =
+      <String, Future<RemoteSongDetail>>{};
   Future<RemoteControlState>? _remoteStateRequest;
+  bool _remoteOperationRunning = false;
 
   /// 検索語とモードを検証し、最大件数までの曲・歌手結果を取得します。
   Future<List<RemoteSong>> searchSongs(
@@ -56,11 +63,13 @@ class RemoteRequestBroker {
     if ((needsQuery && cleaned.isEmpty) || cleaned.length > 80) {
       throw const FormatException('検索語は1～80文字で入力してください');
     }
-    return _request<List<RemoteSong>>(
-      type: 'remoteSearch',
-      fields: <String, Object>{'query': cleaned, 'mode': mode.wireName},
-      timeout: const Duration(seconds: 17),
-      decode: _decodeSongs,
+    return _enqueueRemoteOperation<List<RemoteSong>>(
+      () => _request<List<RemoteSong>>(
+        type: 'remoteSearch',
+        fields: <String, Object>{'query': cleaned, 'mode': mode.wireName},
+        timeout: const Duration(seconds: 17),
+        decode: _decodeSongs,
+      ),
     );
   }
 
@@ -70,35 +79,62 @@ class RemoteRequestBroker {
     RemoteReservationOptions options = const RemoteReservationOptions(),
   }) {
     _validateToken(token);
-    return _request<RemoteReservationResult>(
-      type: 'remoteReserve',
-      fields: <String, Object>{
-        'token': token,
-        'mode': options.mode.name,
-        'key': options.key.clamp(-7, 7),
-        'scoring': options.scoring,
-        'playType': options.playType.name,
-      },
-      timeout: const Duration(seconds: 22),
-      decode: RemoteReservationResult.fromJson,
+    return _enqueueRemoteOperation<RemoteReservationResult>(
+      () => _request<RemoteReservationResult>(
+        type: 'remoteReserve',
+        fields: <String, Object>{
+          'token': token,
+          'mode': options.mode.name,
+          'key': options.key.clamp(-7, 7),
+          'scoring': options.scoring,
+          'playType': options.playType.name,
+        },
+        timeout: const Duration(seconds: 22),
+        decode: RemoteReservationResult.fromJson,
+      ),
     );
   }
 
   /// 検索結果トークンから歌いだし・原曲キー・対応素材を取得します。
   Future<RemoteSongDetail> songDetail(String token) {
     _validateToken(token);
-    return _request<RemoteSongDetail>(
-      type: 'remoteDetail',
-      fields: <String, Object>{'token': token},
-      timeout: const Duration(seconds: 22),
-      decode: (event) {
-        final rawDetail = event['detail'];
-        if (rawDetail is! Map) {
-          throw StateError('DAMから不正な曲詳細を受信しました');
-        }
-        return RemoteSongDetail.fromJson(Map<String, dynamic>.from(rawDetail));
-      },
-    );
+    final cached = _detailCache[token];
+    if (cached != null) return Future<RemoteSongDetail>.value(cached);
+    final activeRequest = _detailRequests[token];
+    if (activeRequest != null) return activeRequest;
+
+    late final Future<RemoteSongDetail> request;
+    request =
+        _enqueueRemoteOperation<RemoteSongDetail>(
+              () => _request<RemoteSongDetail>(
+                type: 'remoteDetail',
+                fields: <String, Object>{'token': token},
+                timeout: const Duration(seconds: 22),
+                decode: (event) {
+                  final rawDetail = event['detail'];
+                  if (rawDetail is! Map) {
+                    throw StateError('DAMから不正な曲詳細を受信しました');
+                  }
+                  return RemoteSongDetail.fromJson(
+                    Map<String, dynamic>.from(rawDetail),
+                  );
+                },
+              ),
+            )
+            .then((detail) {
+              _detailCache[token] = detail;
+              while (_detailCache.length > 400) {
+                _detailCache.remove(_detailCache.keys.first);
+              }
+              return detail;
+            })
+            .whenComplete(() {
+              if (identical(_detailRequests[token], request)) {
+                _detailRequests.remove(token);
+              }
+            });
+    _detailRequests[token] = request;
+    return request;
   }
 
   /// 検索結果トークンに対するお気に入り登録または解除を実行します。
@@ -107,14 +143,16 @@ class RemoteRequestBroker {
     required bool favorite,
   }) {
     _validateToken(token);
-    return _request<RemoteFavoriteResult>(
-      type: 'remoteFavorite',
-      fields: <String, Object>{
-        'token': token,
-        'action': favorite ? 'add' : 'remove',
-      },
-      timeout: const Duration(seconds: 22),
-      decode: RemoteFavoriteResult.fromJson,
+    return _enqueueRemoteOperation<RemoteFavoriteResult>(
+      () => _request<RemoteFavoriteResult>(
+        type: 'remoteFavorite',
+        fields: <String, Object>{
+          'token': token,
+          'action': favorite ? 'add' : 'remove',
+        },
+        timeout: const Duration(seconds: 22),
+        decode: RemoteFavoriteResult.fromJson,
+      ),
     );
   }
 
@@ -203,6 +241,32 @@ class RemoteRequestBroker {
       if (!pending.isCompleted) pending.completeError(error);
     }
     _pending.clear();
+    final queued = _remoteOperations.toList(growable: false);
+    _remoteOperations.clear();
+    for (final operation in queued) {
+      operation.completeError(error);
+    }
+    _detailCache.clear();
+    _detailRequests.clear();
+  }
+
+  /// DAMが共有する非同期要求枠へ、検索・詳細・予約・お気に入りを1本ずつ送ります。
+  Future<T> _enqueueRemoteOperation<T>(Future<T> Function() run) {
+    final operation = _QueuedRemoteOperation<T>(run);
+    _remoteOperations.add(operation);
+    _startNextRemoteOperation();
+    return operation.future;
+  }
+
+  /// 先行操作が完了してから次の操作を開始し、Agent側の処理中拒否を防ぎます。
+  void _startNextRemoteOperation() {
+    if (_remoteOperationRunning || _remoteOperations.isEmpty) return;
+    _remoteOperationRunning = true;
+    final operation = _remoteOperations.removeAt(0);
+    operation.execute().whenComplete(() {
+      _remoteOperationRunning = false;
+      _startNextRemoteOperation();
+    });
   }
 
   /// 単一結果または一覧結果を共通形式へ変換する短時間コマンドを送ります。
@@ -311,4 +375,33 @@ class _PendingRequest<T> {
 
   /// プロセス終了や応答エラーで待機中要求を失敗として完了します。
   void completeError(Object error) => _completer.completeError(error);
+}
+
+/// Agentの共有要求枠へ順番に渡す1件の非同期操作を保持します。
+class _QueuedRemoteOperation<T> {
+  /// 実行関数をまだ開始していない待機操作として生成します。
+  _QueuedRemoteOperation(this.run);
+
+  final Future<T> Function() run;
+  final Completer<T> _completer = Completer<T>();
+
+  /// 呼び出し元が順番待ちを含む最終結果を待つFutureです。
+  Future<T> get future => _completer.future;
+
+  /// 実処理を1回だけ開始し、成功・失敗を呼び出し元へそのまま伝えます。
+  Future<void> execute() async {
+    if (_completer.isCompleted) return;
+    try {
+      _completer.complete(await run());
+    } on Object catch (error, stackTrace) {
+      if (!_completer.isCompleted) {
+        _completer.completeError(error, stackTrace);
+      }
+    }
+  }
+
+  /// Helper終了時に、未開始の順番待ちを同じ理由で解放します。
+  void completeError(Object error) {
+    if (!_completer.isCompleted) _completer.completeError(error);
+  }
 }
