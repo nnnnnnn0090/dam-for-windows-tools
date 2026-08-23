@@ -23,6 +23,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 # 基準ディレクトリの直下に収まる相対パスだけを絶対パスへ変換します。
+
 function Get-SafeChildPath {
   param(
     [Parameter(Mandatory = $true)][string]$BaseDirectory,
@@ -40,6 +41,7 @@ function Get-SafeChildPath {
 }
 
 # SHA256SUMS.txtを解析し、安全な相対パスと期待ハッシュの一覧を返します。
+
 function Read-ReleaseManifest {
   param([Parameter(Mandatory = $true)][string]$ReleaseDirectory)
   $manifestPath = Join-Path $ReleaseDirectory 'SHA256SUMS.txt'
@@ -64,6 +66,7 @@ function Read-ReleaseManifest {
 }
 
 # マニフェスト記載ファイルが通常ファイルとしてすべて存在することを確認します。
+
 function Assert-ReleaseFilesPresent {
   param(
     [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
@@ -82,6 +85,7 @@ function Assert-ReleaseFilesPresent {
 }
 
 # 指定された相対ファイルだけを元の階層を保って別ディレクトリへ移動します。
+
 function Move-ReleaseFiles {
   param(
     [Parameter(Mandatory = $true)][string]$SourceDirectory,
@@ -98,6 +102,7 @@ function Move-ReleaseFiles {
 }
 
 # 指定された相対ファイルだけを元の階層を保って配布フォルダへコピーします。
+
 function Copy-ReleaseFiles {
   param(
     [Parameter(Mandatory = $true)][string]$SourceDirectory,
@@ -113,6 +118,7 @@ function Copy-ReleaseFiles {
 }
 
 # 利用者データフォルダ自身または配下を更新マニフェストの対象にする記述を拒否します。
+
 function Assert-NoProtectedPaths {
   param(
     [Parameter(Mandatory = $true)][string[]]$RelativePaths,
@@ -185,10 +191,12 @@ try {
   Start-Process -FilePath $installedExecutable -WorkingDirectory $installFull
   try {
     # 新版の起動後にバックアップ・更新ZIP・展開物を削除し、大きな残骸を残しません。
+
     Remove-Item -LiteralPath $updateFull -Recurse -Force
   }
   catch {
     # 実行中スクリプトをWindowsが保持している場合は、次回起動時の清掃へ任せます。
+
   }
   exit 0
 }

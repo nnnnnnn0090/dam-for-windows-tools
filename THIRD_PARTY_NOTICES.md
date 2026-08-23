@@ -17,6 +17,7 @@ DAM for Windows Toolsの自作部分はCopyright (c) 2026 nnnnnnn0090、`GPL-3.0
 |---|---:|---|
 | Flutter | 3.47.1 | Flutter/Dartおよび各パッケージの通知は同梱の `NOTICES.Z` |
 | QRCode for JavaScript algorithm | 2009 implementation | MIT; Flutter内のQR生成処理へ移植 |
+| Lucide Icons | 1.33.0 | ISC（一部Feather由来アイコンはMIT）; Webリモコンへ必要なSVGシンボルだけを同梱 |
 | Node.js | 24.19.0 | Node.js license and bundled third-party notices |
 | Frida Node bindings | 17.17.0 | LGPL-2.0 with WxWindows-exception-3.1 |
 | FFmpeg | 9.0.1 Gyan full build | GPL-3.0; 固定配布物、構成、内蔵ライブラリ一覧は `LICENSES/FFmpeg-Gyan-README.txt`、実行時構成は `LICENSES/FFmpeg-Gyan-build.txt` |

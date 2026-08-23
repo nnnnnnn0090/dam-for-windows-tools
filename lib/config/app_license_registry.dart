@@ -31,6 +31,7 @@ abstract final class AppLicenseRegistry {
     _addAsset(const <String>[
       'QRCode for JavaScript algorithm',
     ], 'legal/QR-Code-generator-MIT.txt');
+    _addAsset(const <String>['Lucide Icons 1.33.0'], 'legal/Lucide-ISC.txt');
     _addAsset(const <String>['Node.js runtime'], 'legal/Node.js.txt');
     _addAsset(const <String>[
       'Microsoft Visual C++ Runtime',

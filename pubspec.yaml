@@ -42,6 +42,7 @@ flutter:
   assets:
     - assets/scoring/
     - assets/remote/index.html
+    - assets/remote/icons.svg
     - assets/remote/styles.css
     - assets/remote/app.js
     - assets/updater/update.ps1
@@ -49,6 +50,7 @@ flutter:
     - LEGAL_NOTICE.md
     - THIRD_PARTY_NOTICES.md
     - legal/Frida-LGPL-2.0.txt
+    - legal/Lucide-ISC.txt
     - legal/Microsoft-Visual-Cpp-Runtime.txt
     - legal/Node.js.txt
     - legal/QR-Code-generator-MIT.txt

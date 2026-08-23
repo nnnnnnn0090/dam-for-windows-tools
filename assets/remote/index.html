@@ -18,49 +18,54 @@
 </style>
 </head>
 <body>
+{{REMOTE_ICONS}}
 <header class="top">
   <div class="topline"><div class="brand"><em>DAM</em><small>非公式 REMOTE</small></div><div class="connection"><i class="lamp" id="lamp"></i><span id="connection">接続確認中</span></div></div>
-  <button class="now" id="nowPlaying" type="button"><div class="playmark" id="playmark">■</div><div class="nowtext"><div class="nowtitle" id="nowtitle">再生中の曲はありません</div><div class="nowartist" id="nowartist">{{PRODUCT_NAME}}</div></div><div class="keymini" id="keymini">0</div></button>
+  <button class="now" id="nowPlaying" type="button"><div class="playmark"><svg class="icon" aria-hidden="true"><use id="nowIcon" href="#icon-stop"/></svg></div><div class="nowtext"><div class="nowtitle" id="nowtitle">再生中の曲はありません</div><div class="nowartist" id="nowartist">{{PRODUCT_NAME}}</div></div><div class="keymini" id="keymini">0</div></button>
 </header>
 <main>
 <section class="view active" id="view-search">
   <div class="head"><h1>曲を選ぶ</h1><span class="count" id="resultCount"></span></div>
   <div class="modes">
-    <button class="mode active" data-mode="keyword" type="button"><b>⌕</b>キーワード</button><button class="mode" data-mode="title" type="button"><b>曲</b>曲名</button><button class="mode" data-mode="artist" type="button"><b>人</b>歌手名</button>
-    <button class="mode" data-mode="ranking" type="button"><b>冠</b>ランキング</button><button class="mode" data-mode="new" type="button"><b>新</b>新曲</button><button class="mode" data-mode="favorites" type="button"><b>★</b>お気に入り</button>
+    <button class="mode active" data-mode="keyword" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-search"/></svg><span>キーワード</span></button>
+    <button class="mode" data-mode="title" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-music"/></svg><span>曲名</span></button>
+    <button class="mode" data-mode="artist" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-mic"/></svg><span>歌手名</span></button>
+    <button class="mode" data-mode="ranking" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-trophy"/></svg><span>ランキング</span></button>
+    <button class="mode" data-mode="new" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles"/></svg><span>新曲</span></button>
+    <button class="mode" data-mode="favorites" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-star"/></svg><span>お気に入り</span></button>
   </div>
-  <form class="searchbox" id="search"><input id="query" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="曲名・歌手名・歌詞を入力"><button id="searchButton">検索</button></form>
+  <form class="searchbox" id="search"><input id="query" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="曲名・歌手名・歌詞を入力"><button class="withicon" id="searchButton"><svg class="icon" aria-hidden="true"><use href="#icon-search"/></svg><span>検索</span></button></form>
   <div class="status" id="searchStatus">検索方法を選んでください</div>
   <section class="list" id="results"><div class="empty">検索結果がここに表示されます</div></section>
 </section>
 <section class="view" id="view-detail">
-  <div class="detailbar"><button class="back" id="detailBack" type="button">‹ 戻る</button><strong>曲の詳細</strong><span></span></div>
-  <section class="detailtrack"><h1 id="detailTitle">曲名</h1><button class="detailartist" id="detailArtist" type="button">アーティスト</button><div class="detailid" id="detailId"></div><button class="detailfav" id="detailFavorite" type="button" aria-label="お気に入り">☆</button></section>
+  <div class="detailbar"><button class="back withicon" id="detailBack" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-left"/></svg><span>戻る</span></button><strong>曲の詳細</strong><span></span></div>
+  <section class="detailtrack"><h1 id="detailTitle">曲名</h1><button class="detailartist" id="detailArtist" type="button">アーティスト</button><div class="detailid" id="detailId"></div><button class="detailfav" id="detailFavorite" type="button" aria-label="お気に入り"><svg class="icon" aria-hidden="true"><use href="#icon-star"/></svg></button></section>
   <dl class="songfacts"><div><dt>歌いだし</dt><dd id="detailStartLyric">取得中…</dd></div><div><dt>原曲キー</dt><dd id="detailOriginalKey">取得中…</dd></div></dl>
-  <button class="artistworks" id="artistSongs" type="button">この歌手の曲<span>›</span></button>
+  <button class="artistworks" id="artistSongs" type="button"><span>この歌手の曲</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-right"/></svg></button>
   <section class="setting" aria-label="予約設定">
-    <div class="settingrow"><div class="settingname">キー</div><div class="keyset"><button class="step" id="reserveKeyDown" type="button">♭</button><div class="keyvalue" id="reserveKey">0</div><button class="step" id="reserveKeyUp" type="button">♯</button><button class="original" id="originalKey" type="button">原曲キー</button></div></div>
-    <div class="settingrow"><div class="settingname">採点</div><div class="scorechoices"><button class="choice on" id="scoringDefault" type="button">指定なし</button><button class="choice" id="scoringOn" type="button">採点する</button></div></div>
-    <div class="settingrow"><div class="settingname">演奏タイプ</div><div class="playchoices"><button class="choice on" data-play-type="standard" type="button">通常</button><button class="choice" data-play-type="artistVideo" type="button">本人映像</button><button class="choice" data-play-type="guideVocal" type="button">ガイド</button></div></div>
+    <div class="settingrow"><div class="settingname">キー</div><div class="keyset"><button class="step" id="reserveKeyDown" type="button" aria-label="キーを下げる"><svg class="icon" aria-hidden="true"><use href="#icon-minus"/></svg><span>♭</span></button><div class="keyvalue" id="reserveKey">0</div><button class="step" id="reserveKeyUp" type="button" aria-label="キーを上げる"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg><span>♯</span></button><button class="original withicon" id="originalKey" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-restart"/></svg><span id="originalKeyLabel">原曲キー</span></button></div></div>
+    <div class="settingrow"><div class="settingname">採点</div><div class="scorechoices"><button class="choice withicon on" id="scoringDefault" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg><span>指定なし</span></button><button class="choice withicon" id="scoringOn" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-gauge"/></svg><span>採点する</span></button></div></div>
+    <div class="settingrow"><div class="settingname">演奏タイプ</div><div class="playchoices"><button class="choice withicon on" data-play-type="standard" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-music"/></svg><span>通常</span></button><button class="choice withicon" data-play-type="artistVideo" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-video"/></svg><span>本人映像</span></button><button class="choice withicon" data-play-type="guideVocal" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-mic"/></svg><span>ガイド</span></button></div></div>
   </section>
-  <div class="reservearea"><button class="reservebutton" id="reserveNormal" type="button">予約</button><button class="reservebutton cut" id="reserveCutIn" type="button">割り込み</button></div>
+  <div class="reservearea"><button class="reservebutton withicon" id="reserveNormal" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-list-plus"/></svg><span>予約</span></button><button class="reservebutton withicon cut" id="reserveCutIn" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-zap"/></svg><span>割り込み</span></button></div>
   <div class="detailmessage" id="detailMessage"></div>
 </section>
-<section class="view" id="view-queue"><div class="head"><h2>予約確認</h2><div><span class="count" id="queueCount">0曲</span> <button class="refresh" id="refreshQueue" type="button">更新</button></div></div><section class="queue" id="queue"><div class="empty">予約はありません</div></section></section>
-<section class="view" id="view-history"><div class="head"><h2>再生履歴</h2><div><span class="count" id="historyCount">0曲</span> <button class="refresh" id="refreshHistory" type="button">更新</button></div></div><section class="list" id="history"><div class="empty">履歴はありません</div></section></section>
+<section class="view" id="view-queue"><div class="head"><h2>予約確認</h2><div class="head-actions"><span class="count" id="queueCount">0曲</span><button class="refresh withicon" id="refreshQueue" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"/></svg><span>更新</span></button></div></div><section class="queue" id="queue"><div class="empty">予約はありません</div></section></section>
+<section class="view" id="view-history"><div class="head"><h2>再生履歴</h2><div class="head-actions"><span class="count" id="historyCount">0曲</span><button class="refresh withicon" id="refreshHistory" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"/></svg><span>更新</span></button></div></div><section class="list" id="history"><div class="empty">履歴はありません</div></section></section>
 <section class="view" id="view-control">
   <div class="head"><h2>演奏操作</h2></div>
-  <button class="globalscore" id="damScoring" type="button">ホームの採点設定<span>OFF</span></button>
-  <section class="console"><div class="display"><div class="songtitle" id="controlTitle">再生中の曲はありません</div><div class="songmeta" id="controlArtist">曲を再生すると操作できます</div></div><div class="controls"><div class="control-label">キーコントロール</div><div class="keyrow"><button class="keybutton" data-control="keyDown">♭ 下げる</button><button class="keyreset" id="keyReset" data-control="keyReset">0</button><button class="keybutton" data-control="keyUp">♯ 上げる</button></div><div class="transportgrid"><button class="transport primary" id="pauseButton" data-control="pause">Ⅱ　一時停止</button><button class="transport" data-control="restart">↺　歌いなおし</button><button class="transport stop" data-control="stop">■　演奏停止</button></div></div></section>
+  <button class="globalscore" id="damScoring" type="button"><span class="button-title"><svg class="icon" aria-hidden="true"><use href="#icon-gauge"/></svg>ホームの採点設定</span><span class="toggle-state">OFF</span></button>
+  <section class="console"><div class="display"><div class="songtitle" id="controlTitle">再生中の曲はありません</div><div class="songmeta" id="controlArtist">曲を再生すると操作できます</div></div><div class="controls"><div class="control-label">キーコントロール</div><div class="keyrow"><button class="keybutton withicon" data-control="keyDown"><svg class="icon" aria-hidden="true"><use href="#icon-minus"/></svg><span>♭ 下げる</span></button><button class="keyreset" id="keyReset" data-control="keyReset">0</button><button class="keybutton withicon" data-control="keyUp"><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg><span>♯ 上げる</span></button></div><div class="transportgrid"><button class="transport withicon primary" id="pauseButton" data-control="pause"><svg class="icon" aria-hidden="true"><use id="pauseIcon" href="#icon-pause"/></svg><span id="pauseLabel">一時停止</span></button><button class="transport withicon" data-control="restart"><svg class="icon" aria-hidden="true"><use href="#icon-restart"/></svg><span>歌いなおし</span></button><button class="transport withicon stop" data-control="stop"><svg class="icon" aria-hidden="true"><use href="#icon-stop"/></svg><span>演奏停止</span></button></div></div></section>
 </section>
 </main>
-<nav class="bottom"><div class="nav"><button class="active" data-view="search"><b>⌕</b>選曲</button><button data-view="queue"><b>☷</b>予約</button><button data-view="history"><b>履</b>履歴</button><button data-view="control"><b>●</b>演奏</button></div></nav>
+<nav class="bottom"><div class="nav"><button class="active" data-view="search"><svg class="icon" aria-hidden="true"><use href="#icon-search"/></svg><span>選曲</span></button><button data-view="queue"><svg class="icon" aria-hidden="true"><use href="#icon-list-music"/></svg><span>予約</span></button><button data-view="history"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg><span>履歴</span></button><button data-view="control"><svg class="icon" aria-hidden="true"><use href="#icon-controls"/></svg><span>演奏</span></button></div></nav>
 <div class="dam-confirmation" id="damConfirmation" role="dialog" aria-modal="true" aria-labelledby="damConfirmationTitle" hidden>
   <section class="dam-confirmation-card">
     <div class="dam-confirmation-label">DAM本体の確認</div>
     <h2 id="damConfirmationTitle">選択してください</h2>
     <p id="damConfirmationMessage"></p>
-    <div class="dam-confirmation-actions"><button id="damConfirmationNo" type="button">いいえ</button><button id="damConfirmationYes" type="button">はい</button></div>
+    <div class="dam-confirmation-actions"><button class="withicon" id="damConfirmationNo" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-x"/></svg><span>いいえ</span></button><button class="withicon" id="damConfirmationYes" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg><span>はい</span></button></div>
   </section>
 </div>
 <div class="toast" id="toast"></div>

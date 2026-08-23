@@ -24,6 +24,7 @@ if (-not ($smokeRoot + [IO.Path]::DirectorySeparatorChar).StartsWith($buildPrefi
 }
 
 # 指定ファイル群の現在ハッシュから、配布物と同形式のマニフェストを作成します。
+
 function Write-TestManifest {
   param(
     [Parameter(Mandatory = $true)][string]$Root,
@@ -82,6 +83,7 @@ finally {
   if (($smokeRoot + [IO.Path]::DirectorySeparatorChar).StartsWith($buildPrefix, [StringComparison]::OrdinalIgnoreCase) -and
       (Test-Path -LiteralPath $smokeRoot)) {
     # 更新後に起動した検査用EXEがファイルを解放するまで、短時間だけ清掃を再試行します。
+
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
       try {
         Remove-Item -LiteralPath $smokeRoot -Recurse -Force

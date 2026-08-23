@@ -28,6 +28,7 @@ abstract final class AppConfig {
   static const remoteServerPort = 8766;
   static const mediaServerOrigin = 'http://$loopbackHost:$mediaServerPort';
   static const remotePageAsset = 'assets/remote/index.html';
+  static const remoteIconAsset = 'assets/remote/icons.svg';
   static const remoteStyleAsset = 'assets/remote/styles.css';
   static const remoteScriptAsset = 'assets/remote/app.js';
   static const updaterScriptAsset = 'assets/updater/update.ps1';

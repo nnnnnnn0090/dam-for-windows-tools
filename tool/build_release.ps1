@@ -24,7 +24,7 @@ Set-StrictMode -Version Latest
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $releaseName = 'DAMforWindowsTools'
 $releaseConfigPath = Join-Path $projectRoot 'tool\release_config.json'
-$releaseConfig = Get-Content -LiteralPath $releaseConfigPath -Raw | ConvertFrom-Json
+$releaseConfig = Get-Content -LiteralPath $releaseConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $releaseVersion = $releaseConfig.releaseVersion
 $nodeVersion = $releaseConfig.nodeVersion
 $fridaVersion = $releaseConfig.fridaVersion
@@ -43,7 +43,7 @@ $dumpBin = Find-DumpBin -VisualStudioPath $msvcRuntime.VisualStudioPath
 $pubspecText = Get-Content -LiteralPath (Join-Path $projectRoot 'pubspec.yaml') -Raw -Encoding UTF8
 if ($pubspecText -notmatch '(?m)^version:\s*([^+\s]+)') { throw 'pubspec.yaml version is missing' }
 if ($Matches[1] -ne $releaseVersion) { throw 'pubspec.yaml and release_config.json versions differ' }
-$sidecarPackage = Get-Content -LiteralPath (Join-Path $projectRoot 'sidecar\package.json') -Raw | ConvertFrom-Json
+$sidecarPackage = Get-Content -LiteralPath (Join-Path $projectRoot 'sidecar\package.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($sidecarPackage.version -ne $releaseVersion -or
     $sidecarPackage.engines.node -ne $nodeVersion -or
     $sidecarPackage.dependencies.frida -ne $fridaVersion) {
@@ -91,7 +91,7 @@ foreach ($required in @($sourceInputs, $releaseConfigPath)) {
   -ManifestPath $sourceInputs `
   -CacheRoot (Join-Path $projectRoot 'tool\cache')
 
-$inputDefinition = Get-Content -LiteralPath $sourceInputs -Raw | ConvertFrom-Json
+$inputDefinition = Get-Content -LiteralPath $sourceInputs -Raw -Encoding UTF8 | ConvertFrom-Json
 foreach ($required in @($nodeArchive, $ffmpegArchive, $ffmpegSource)) {
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
     throw "Required pinned release input is missing: $required"
@@ -184,6 +184,7 @@ try {
   }
   New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
   # 過去バージョンの生成物だけを削除し、distを今回公開する2つのZIPへ保ちます。
+
   $releaseArtifactPattern = "^$([regex]::Escape($releaseName))-\d+\.\d+\.\d+-(?:win-x64|source)\.zip(?:\.sha256)?$"
   Get-ChildItem -LiteralPath $distRoot -File |
     Where-Object { $_.Name -match $releaseArtifactPattern } |
@@ -195,6 +196,7 @@ try {
     throw "Flutter release output is missing: $flutterRelease"
   }
   # Flutter出力を実行して作られた利用者データは残したまま、配布対象から明示的に除外します。
+
   Get-ChildItem -LiteralPath $flutterRelease -Force |
     Where-Object { $_.Name -ne 'DAMforWindowsToolsData' } |
     ForEach-Object {
@@ -266,6 +268,7 @@ try {
   Copy-Item -LiteralPath $ffmpegLicense -Destination (Join-Path $licenses 'FFmpeg-Gyan-GPLv3.txt')
   Copy-Item -LiteralPath $ffmpegReadme -Destination (Join-Path $licenses 'FFmpeg-Gyan-README.txt')
   Copy-Item -LiteralPath (Join-Path $projectRoot 'legal\Frida-LGPL-2.0.txt') -Destination $licenses
+  Copy-Item -LiteralPath (Join-Path $projectRoot 'legal\Lucide-ISC.txt') -Destination $licenses
   Copy-Item -LiteralPath (Join-Path $projectRoot 'legal\Microsoft-Visual-Cpp-Runtime.txt') -Destination $licenses
   Copy-Item -LiteralPath (Join-Path $projectRoot 'legal\WxWindows-exception-3.1.txt') -Destination $licenses
   Copy-Item -LiteralPath (Join-Path $projectRoot 'legal\QR-Code-generator-MIT.txt') -Destination $licenses
@@ -334,7 +337,7 @@ try {
   if ($LASTEXITCODE -ne 0 -or $gitCommit -notmatch '^[0-9a-f]{40}$') {
     throw 'Unable to determine the release commit'
   }
-  $targetManifest = Get-Content -LiteralPath (Join-Path $projectRoot "sidecar\$manifestName") -Raw | ConvertFrom-Json
+  $targetManifest = Get-Content -LiteralPath (Join-Path $projectRoot "sidecar\$manifestName") -Raw -Encoding UTF8 | ConvertFrom-Json
   $buildInfo = [ordered]@{
     _meta = [ordered]@{
       project = 'DAM for Windows Tools'

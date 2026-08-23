@@ -22,11 +22,13 @@ class RemotePageProvider {
       rootBundle.loadString(AppConfig.remotePageAsset),
       rootBundle.loadString(AppConfig.remoteStyleAsset),
       rootBundle.loadString(AppConfig.remoteScriptAsset),
+      rootBundle.loadString(AppConfig.remoteIconAsset),
     ]);
     final template = assets[0];
     final page = template
         .replaceAll('{{REMOTE_STYLES}}', assets[1])
         .replaceAll('{{REMOTE_SCRIPT}}', assets[2])
+        .replaceAll('{{REMOTE_ICONS}}', assets[3])
         .replaceAll('{{PRODUCT_NAME}}', AppConfig.productName)
         .replaceAll('{{REMOTE_NAME}}', AppConfig.remoteName);
     if (RegExp(r'\{\{[A-Z_]+\}\}').hasMatch(page)) {

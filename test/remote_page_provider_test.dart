@@ -20,6 +20,8 @@ void main() {
     expect(identical(first, second), isTrue);
     expect(first, contains(AppConfig.productName));
     expect(first, contains('async function api('));
+    expect(first, contains('id="icon-search"'));
+    expect(first, contains('href="#icon-list-music"'));
     expect(first, contains('--panel:#171c24'));
     expect(first, contains('id="damConfirmation"'));
     expect(first, contains("action:yes?'confirmYes':'confirmNo'"));

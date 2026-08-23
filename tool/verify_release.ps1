@@ -22,7 +22,7 @@ $release = [IO.Path]::GetFullPath($ReleaseRoot)
 if (-not (Test-Path -LiteralPath $release -PathType Container)) {
   throw "Release folder does not exist: $release"
 }
-$releaseConfig = Get-Content -LiteralPath (Join-Path $projectRoot 'tool\release_config.json') -Raw | ConvertFrom-Json
+$releaseConfig = Get-Content -LiteralPath (Join-Path $projectRoot 'tool\release_config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 
 $requiredFiles = @(
   'DAMforWindowsTools.exe',
@@ -39,6 +39,7 @@ $requiredFiles = @(
   'BUILD_INFO.json',
   'LICENSES\FFmpeg-Gyan-build.txt',
   'LICENSES\FFmpeg-Gyan-README.txt',
+  'LICENSES\Lucide-ISC.txt',
   'LICENSES\Microsoft-Visual-Cpp-Runtime.txt',
   'runtime\node.exe',
   'runtime\ffmpeg.exe',
@@ -132,7 +133,7 @@ foreach ($sidecarSource in $sidecarSources) {
   if ($LASTEXITCODE -ne 0) { throw "Packaged sidecar syntax check failed: $sidecarSource" }
 }
 
-$buildInfo = Get-Content -LiteralPath (Join-Path $release 'BUILD_INFO.json') -Raw | ConvertFrom-Json
+$buildInfo = Get-Content -LiteralPath (Join-Path $release 'BUILD_INFO.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $unexpectedMsvcRuntime = Get-ChildItem -LiteralPath $release -File |
   Where-Object { $_.Name -match '^(?:msvcp|vcruntime|concrt|vccorlib)\d.*\.dll$' -and $_.Name -notin $msvcRuntimeFiles } |
   Select-Object -First 1
@@ -153,7 +154,7 @@ foreach ($fileName in $msvcRuntimeFiles) {
     throw "Visual C++ runtime provenance mismatch: $fileName"
   }
 }
-$ffmpegConfiguration = Get-Content -LiteralPath (Join-Path $release 'LICENSES\FFmpeg-Gyan-build.txt') -Raw
+$ffmpegConfiguration = Get-Content -LiteralPath (Join-Path $release 'LICENSES\FFmpeg-Gyan-build.txt') -Raw -Encoding UTF8
 $ffmpeg = Join-Path $release 'runtime\ffmpeg.exe'
 $ffmpegHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ffmpeg).Hash.ToLowerInvariant()
 if (($buildInfo.signed -ne $true -and $ffmpegHash -ne $releaseConfig.ffmpegExecutableSha256) -or
@@ -188,7 +189,7 @@ try {
   }
 }
 
-$fridaPackage = Get-Content -LiteralPath (Join-Path $release 'runtime\helper\node_modules\frida\package.json') -Raw | ConvertFrom-Json
+$fridaPackage = Get-Content -LiteralPath (Join-Path $release 'runtime\helper\node_modules\frida\package.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($fridaPackage.version -ne $releaseConfig.fridaVersion) { throw "Unexpected Frida version: $($fridaPackage.version)" }
 $expectedRuntimePackages = [Collections.Generic.HashSet[string]]::new(
   [string[]]@('frida','bindings','file-uri-to-path','minimatch','brace-expansion','balanced-match'),
@@ -220,7 +221,7 @@ if ($RequireSignature -and $buildInfo.signed -ne $true) {
   throw 'Build provenance marks this release as unsigned'
 }
 
-$target = Get-Content -LiteralPath (Join-Path $release 'runtime\helper\supported-dam.json') -Raw | ConvertFrom-Json
+$target = Get-Content -LiteralPath (Join-Path $release 'runtime\helper\supported-dam.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($target.target.fileVersion -ne '1.1.7.0' -or
     $target.target.sha256 -ne 'c47e25af4d5b96d299c17dfcce464b5e84c5cce0f81b3080ce7e5beb37839099') {
   throw 'Unexpected DAM target identity'
