@@ -11,7 +11,7 @@
 /// GUIや保存形式まで変更する必要がない構成にしています。
 abstract final class AppConfig {
   static const productName = 'DAM for Windows Tools';
-  static const productVersion = '1.1.2';
+  static const productVersion = '1.1.3';
   static const executableName = 'DAMforWindowsTools.exe';
   static const releaseArchiveRootName = 'DAMforWindowsTools';
   static const remoteName = 'DAM for Windows Remote';
