@@ -180,6 +180,11 @@ try {
     }
   }
   New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
+  # 過去バージョンの生成物だけを削除し、distを今回公開する4ファイルへ保ちます。
+  $releaseArtifactPattern = "^$([regex]::Escape($releaseName))-\d+\.\d+\.\d+-(?:win-x64|source)\.zip(?:\.sha256)?$"
+  Get-ChildItem -LiteralPath $distRoot -File |
+    Where-Object { $_.Name -match $releaseArtifactPattern } |
+    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
   New-Item -ItemType Directory -Force -Path $releaseRoot,$sourceRoot | Out-Null
 
   $flutterRelease = Join-Path $projectRoot 'build\windows\x64\runner\Release'
