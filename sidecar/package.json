@@ -17,6 +17,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "frida": "17.17.0"
+    "frida": "17.23.3"
   }
 }
