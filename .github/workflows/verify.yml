@@ -1,0 +1,73 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 固定版数を読み込む
+        id: versions
+        shell: pwsh
+        run: |
+          $config = Get-Content -Raw tool/release.json | ConvertFrom-Json
+          "flutter=$($config.toolchain.flutter)" >> $env:GITHUB_OUTPUT
+          "rust=$($config.toolchain.rust)" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        with:
+          path: tool/cache
+          key: tool-cache-${{ hashFiles('tool/release.json') }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.versions.outputs.flutter }}
+          channel: stable
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.versions.outputs.rust }}
+          components: clippy, rustfmt
+
+      - name: 依存物を取得して検証する
+        shell: powershell
+        run: ./tool/bootstrap.ps1
+
+      - name: Dart
+        run: |
+          flutter pub get
+          dart format --output=none --set-exit-if-changed lib test
+          dart analyze --fatal-infos
+          flutter test
+
+      - name: 接続ヘルパー
+        working-directory: helper
+        shell: pwsh
+        run: |
+          $node = '../tool/cache/node/node.exe'
+          Get-ChildItem *.js | ForEach-Object { & $node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }
+          & $node check_agent_syntax.js; if ($LASTEXITCODE) { exit 1 }
+          & $node --test; if ($LASTEXITCODE) { exit 1 }
+
+      - name: Rust
+        working-directory: native
+        run: |
+          cargo fmt --check
+          cargo clippy --release --workspace --all-targets -- -D warnings
+          cargo test --release --workspace
+
+      - name: Windowsビルド
+        run: flutter build windows --release

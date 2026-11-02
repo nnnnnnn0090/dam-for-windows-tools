@@ -1,0 +1,5 @@
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.dart text eol=lf
+*.png binary
+*.ico binary

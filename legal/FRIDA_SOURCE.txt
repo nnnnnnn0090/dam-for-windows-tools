@@ -1,0 +1,29 @@
+Project: DAM for Windows Tools
+File: FRIDA_SOURCE.txt
+Copyright (c) 2026 nnnnnnn0090. All rights reserved.
+Author: nnnnnnn0090
+SPDX-License-Identifier: GPL-3.0-or-later
+Created: 2026-08-22
+
+Frida Node bindings 17.17.0
+License: LGPL-2.0 with WxWindows-exception-3.1
+
+Exact wrapper source:
+https://github.com/frida/frida-node/tree/17.17.0
+
+Frida umbrella source and corresponding subprojects:
+https://github.com/frida/frida/tree/17.17.0
+https://github.com/frida/frida-core
+https://github.com/frida/frida-gum
+
+The distributed npm package also contains the wrapper source under:
+runtime/helper/node_modules/frida/src
+
+The release SOURCE directory also contains the exact 17.17.0 source archives:
+frida-17.17.0.tar.gz
+frida-node-17.17.0.tar.gz
+frida-core-17.17.0.tar.gz
+frida-gum-17.17.0.tar.gz
+
+Build and dependency metadata is present in the same package in meson.build,
+subprojects/, package.json, and the package lock bundled by this application.

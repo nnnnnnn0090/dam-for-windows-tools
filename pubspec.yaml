@@ -1,0 +1,31 @@
+name: dam_for_windows_tools
+description: "DAM for Windows向けの、動画差し替え・遅延補正・採点表現表示・スマホリモコンを提供する非公式ツール。"
+publish_to: 'none'
+
+# Windowsでは build-name が製品・ファイル版の3要素、build-number が末尾になります。
+# tool/release.json の releaseVersion と一致させます（build_release.ps1 が検証）。
+version: 2.0.0+7
+
+environment:
+  sdk: ^3.13.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  crypto: ^3.0.6
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/scoring/
+    - assets/remote/
+    - LICENSE
+    - LEGAL_NOTICE.md
+    - THIRD_PARTY_NOTICES.md
+    - legal/

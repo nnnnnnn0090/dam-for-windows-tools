@@ -1,0 +1,4 @@
+# frida-core devkit は静的CRT(/MT)でビルドされているため、全クレートを同じCRTに揃えます。
+# これにより dam-link・updater・採点オーバーレイDLLは MSVC ランタイムDLLなしで動作します。
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
