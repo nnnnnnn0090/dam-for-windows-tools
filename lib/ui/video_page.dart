@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/app_controller.dart';
+import '../app/states.dart';
 import '../domain/settings.dart';
 import '../domain/tracks.dart';
 import 'theme.dart';
@@ -23,6 +24,7 @@ class VideoPage extends StatelessWidget {
       children: <Widget>[
         SettingsPanel(controller: controller),
         const SizedBox(height: 12),
+        TaskBanner(controller: controller),
         Expanded(child: HistoryPanel(controller: controller)),
         const SizedBox(height: 4),
         DiagnosticLogPanel(controller: controller),
@@ -205,6 +207,7 @@ class HistoryPanel extends StatelessWidget {
         controller.exportUnlocked,
         controller.exportableVideos,
         controller.exportingVideos,
+        controller.tasks,
       ]),
       builder: (context, _) {
         final records = controller.history.records;
@@ -279,12 +282,7 @@ class HistoryPanel extends StatelessWidget {
                   ),
                   Expanded(flex: 21, child: _Cell(record.artist)),
                   Expanded(flex: 25, child: _Cell(record.title)),
-                  Expanded(
-                    flex: 12,
-                    child: _StageText(
-                      controller.history.stageOf(record.videoId),
-                    ),
-                  ),
+                  Expanded(flex: 12, child: _stageCell(record.videoId)),
                   Expanded(flex: 27, child: _videoButtons(context, record)),
                 ],
               ),
@@ -320,7 +318,7 @@ class HistoryPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _StageText(controller.history.stageOf(record.videoId)),
+                SizedBox(width: 96, child: _stageCell(record.videoId)),
                 const SizedBox(width: 8),
                 _videoButtons(context, record),
               ],
@@ -329,8 +327,32 @@ class HistoryPanel extends StatelessWidget {
         },
       );
 
+  /// 作業中ならその進み具合、そうでなければ再生の状態です。
+  Widget _stageCell(String videoId) {
+    final task = controller.tasks.forVideo(videoId);
+    if (task == null) return _StageText(controller.history.stageOf(videoId));
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            task.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.info),
+          ),
+          const SizedBox(height: 3),
+          LinearProgressIndicator(value: task.fraction, minHeight: 3),
+        ],
+      ),
+    );
+  }
+
   Widget _videoButtons(BuildContext context, TrackRecord record) {
     final videoId = record.videoId;
+    final importing = controller.tasks.isRunning(TaskKind.import, videoId);
     final manual = controller.manualVideos.value.contains(videoId);
     final exportable = controller.exportableVideos.value.contains(videoId);
     final exporting = controller.exportingVideos.value.contains(videoId);
@@ -343,10 +365,18 @@ class HistoryPanel extends StatelessWidget {
       children: <Widget>[
         TextButton(
           style: style,
-          onPressed: () => unawaited(_choose(context, videoId)),
-          child: Text(manual ? '変更...' : '選択...'),
+          onPressed: importing
+              ? null
+              : () => unawaited(_choose(context, videoId)),
+          child: Text(
+            importing
+                ? '取り込み中'
+                : manual
+                ? '変更...'
+                : '選択...',
+          ),
         ),
-        if (manual)
+        if (manual && !importing)
           TextButton(
             style: style,
             onPressed: () => unawaited(controller.clearManualVideo(videoId)),
@@ -455,6 +485,110 @@ class _Cell extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// 裏で動いている作業（取り込み・変換・書き出し）の一覧です。作業がないときは何も出しません。
+class TaskBanner extends StatelessWidget {
+  const TaskBanner({super.key, required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge(<Listenable>[
+      controller.tasks,
+      controller.history,
+    ]),
+    builder: (context, _) {
+      final tasks = controller.tasks.all;
+      if (tasks.isEmpty) return const SizedBox.shrink();
+      final records = <String, TrackRecord>{
+        for (final record in controller.history.records) record.videoId: record,
+      };
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Panel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              PanelHeader('作業中 (${tasks.length})'),
+              const Divider(),
+              for (final task in tasks)
+                _TaskRow(task: task, record: records[task.videoId]),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _TaskRow extends StatelessWidget {
+  const _TaskRow({required this.task, required this.record});
+
+  final TaskProgress task;
+  final TrackRecord? record;
+
+  @override
+  Widget build(BuildContext context) {
+    final record = this.record;
+    final song = record == null
+        ? ''
+        : <String>[
+            record.title,
+            record.artist,
+          ].where((s) => s.isNotEmpty).join(' / ');
+    final remaining = task.remaining();
+    final status = <String>[
+      task.fraction == null ? '' : '${(task.fraction! * 100).floor()}%',
+      task.detail,
+      if (remaining != null) _remainingText(remaining),
+    ].where((s) => s.isNotEmpty).join('・');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              SizedBox(
+                width: 64,
+                child: Text(
+                  task.kind.label,
+                  style: const TextStyle(fontSize: 12, color: AppColors.info),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  song.isEmpty ? task.videoId : '${task.videoId}  $song',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                status.isEmpty ? '開始しています' : status,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textFaint,
+                  fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(value: task.fraction, minHeight: 4),
+        ],
+      ),
+    );
+  }
+
+  static String _remainingText(Duration remaining) {
+    final seconds = remaining.inSeconds;
+    if (seconds < 60) return '残り約$seconds秒';
+    return '残り約${seconds ~/ 60}分${seconds % 60}秒';
+  }
 }
 
 class _StageText extends StatelessWidget {

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dam_for_windows_tools/domain/tracks.dart';
+import 'package:dam_for_windows_tools/infra/media/ffmpeg_progress.dart';
 import 'package:dam_for_windows_tools/infra/media/manifest_rewriter.dart';
 import 'package:dam_for_windows_tools/infra/media/media_server.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,9 +41,11 @@ void main() {
     late MediaServer server;
     late HttpServer upstream;
     final stages = <PlaybackStage>[];
+    final progress = <(String, MediaProgress?)>[];
     final client = HttpClient();
 
     setUp(() async {
+      progress.clear();
       temp = await Directory.systemTemp.createTemp('dam_tools_media_');
       upstream = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       upstream.listen((request) async {
@@ -61,6 +64,7 @@ void main() {
         ffmpeg: ffmpeg,
         onStage: (_, stage, _) => stages.add(stage),
         onLog: (_) {},
+        onProgress: (id, value) => progress.add((id, value)),
       );
       await server.start();
     });
@@ -162,6 +166,21 @@ void main() {
           Uri.parse(url).resolve(segment).toString(),
         );
         expect(segmentStatus, 200);
+        // 変換の進み具合が届き、最後に終了（null）が届く。
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (!progress.any((e) => e.$2 == null) &&
+            DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        expect(progress.every((e) => e.$1 == '9-9'), isTrue);
+        expect(progress.last.$2, isNull);
+        final fractions = progress
+            .map((e) => e.$2?.fraction)
+            .whereType<double>()
+            .toList();
+        expect(fractions, isNotEmpty);
+        // 5秒の動画を0.5秒飛ばして変換するので、全体は約4.5秒
+        expect(fractions.last, greaterThan(0.9));
         // 差し替え解除で変換結果も消え、元ファイルは解放されている。
         await server.setManualSource('9-9', null);
         await File(source).delete();

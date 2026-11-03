@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../domain/tracks.dart';
+import 'ffmpeg_progress.dart';
 
 /// 保存画面に出す既定のファイル名です（`<動画ID> <アーティスト> - <曲名>.mp4`）。
 ///
@@ -49,16 +50,35 @@ class OriginalExporter {
 
   /// [sources] を順に試し、最初に成功したものを [output] へ保存します。
   /// すべて失敗したら最後のFFmpegのエラーを含む [ExportException] を投げます。
-  Future<void> export(List<Uri> sources, File output) async {
+  /// [onProgress] には、書き出し済みの時間と全体の長さ（分かれば）が届きます。
+  Future<void> export(
+    List<Uri> sources,
+    File output, {
+    void Function(MediaProgress progress)? onProgress,
+  }) async {
     if (sources.isEmpty) throw const ExportException('公式動画のURLがありません');
     final part = File('${output.path}.part');
     var lastError = '';
     try {
       for (final source in sources) {
+        // 全体の長さは書き出しと並行して調べ、再試行でも使い回します。
+        Duration? total;
+        unawaited(
+          probeDuration(
+            ffmpeg,
+            source.toString(),
+          ).then((duration) => total ??= duration),
+        );
         for (final copyAudio in <bool>[true, false]) {
           if (_closed) throw const ExportException('アプリの終了により中止しました');
+          onProgress?.call(
+            MediaProgress(processed: Duration.zero, total: total),
+          );
           final error = await _run(
             arguments(source, part, copyAudio: copyAudio),
+            (processed) => onProgress?.call(
+              MediaProgress(processed: processed, total: total),
+            ),
           );
           if (error == null) {
             if (await output.exists()) await output.delete();
@@ -97,9 +117,15 @@ class OriginalExporter {
   }
 
   /// 成功なら `null`、失敗ならFFmpegのエラー出力（末尾数行）を返します。
-  Future<String?> _run(List<String> args) async {
+  Future<String?> _run(
+    List<String> args,
+    void Function(Duration processed) onProcessed,
+  ) async {
     final process = await Process.start(ffmpeg, args);
     _running.add(process);
+    final progressDone = parseFfmpegProgress(process.stdout)
+        .forEach(onProcessed)
+        .catchError((Object _) {});
     final errors = <String>[];
     final stderrDone = process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
@@ -110,10 +136,10 @@ class OriginalExporter {
           if (errors.length > 8) errors.removeAt(0);
         })
         .catchError((Object _) {});
-    unawaited(process.stdout.drain<void>().catchError((Object _) {}));
     final code = await process.exitCode;
     _running.remove(process);
     await stderrDone;
+    await progressDone;
     if (code == 0) return null;
     return errors.isEmpty ? '終了コード $code' : errors.join(' | ');
   }
@@ -128,6 +154,7 @@ class OriginalExporter {
     '-hide_banner',
     '-loglevel',
     'error',
+    ...ffmpegProgressArguments,
     '-rw_timeout',
     '15000000',
     '-i',

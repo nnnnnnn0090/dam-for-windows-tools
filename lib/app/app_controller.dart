@@ -11,6 +11,7 @@ import '../domain/values.dart';
 import '../infra/helper/dam_link.dart';
 import '../infra/helper/helper_process.dart';
 import '../infra/json_store.dart';
+import '../infra/media/ffmpeg_progress.dart';
 import '../infra/media/media_server.dart';
 import '../infra/media/original_exporter.dart';
 import '../infra/native_bridge.dart';
@@ -37,6 +38,9 @@ class AppController {
   final HistoryState history = HistoryState();
   final ScoringState scoring = ScoringState();
   final UpdateState update = UpdateState();
+
+  /// 取り込み・変換・書き出しなど、裏で動いている作業の進み具合です。
+  final TaskState tasks = TaskState();
   final ValueNotifier<AppSettings> settings = ValueNotifier<AppSettings>(
     const AppSettings(),
   );
@@ -115,6 +119,7 @@ class AppController {
         progressive: Platform.environment['DAM_TOOLS_PROGRESSIVE_HLS'] == '1',
         onStage: _markStage,
         onLog: log.add,
+        onProgress: _onTranscodeProgress,
       )..setManualSources(videos);
       try {
         await media.start();
@@ -213,14 +218,52 @@ class AppController {
   /// 動画を選んで差し替えに登録します。キャンセルなら何もしません。
   Future<void> chooseManualVideo(String videoId) async {
     await _ready.future;
+    if (tasks.isRunning(TaskKind.import, videoId)) return;
     final picked = await bridge.pickVideoFile(ManualVideoStore.extensions);
     if (picked == null) return;
     await _media?.forget(videoId);
-    final stored = await _videoStore.import(videoId, File(picked));
+    tasks.update(TaskKind.import, videoId, fraction: 0);
+    final started = DateTime.now();
+    final File stored;
+    try {
+      stored = await _videoStore.import(
+        videoId,
+        File(picked),
+        onProgress: (copied, total) => tasks.update(
+          TaskKind.import,
+          videoId,
+          fraction: total > 0 ? copied / total : null,
+          detail: '${_megabytes(copied)} / ${_megabytes(total)}',
+        ),
+      );
+    } finally {
+      tasks.end(TaskKind.import, videoId);
+    }
     await _media?.setManualSource(videoId, stored);
     manualVideos.value = <String>{...manualVideos.value, videoId};
-    log.add('[$videoId] 差し替え動画を保存しました');
+    final seconds = DateTime.now().difference(started).inMilliseconds / 1000;
+    log.add(
+      '[$videoId] 差し替え動画を保存しました'
+      '（${_megabytes(await stored.length())}・${seconds.toStringAsFixed(1)}秒）',
+    );
   }
+
+  /// 変換の進み具合を作業一覧へ反映します（`null` は変換の終了）。
+  void _onTranscodeProgress(String videoId, MediaProgress? progress) {
+    if (progress == null) {
+      tasks.end(TaskKind.transcode, videoId);
+      return;
+    }
+    tasks.update(
+      TaskKind.transcode,
+      videoId,
+      fraction: progress.fraction,
+      detail: progress.describe(),
+    );
+  }
+
+  static String _megabytes(int bytes) =>
+      '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
 
   Future<void> clearManualVideo(String videoId) async {
     await _ready.future;
@@ -251,15 +294,26 @@ class AppController {
     final path = await bridge.pickSaveFile(exportFileName(record));
     if (path == null) return null;
     exportingVideos.value = <String>{...exportingVideos.value, videoId};
+    tasks.update(TaskKind.export, videoId, fraction: 0);
     log.add('[$videoId] 公式動画を書き出しています: $path');
     try {
-      await _exporter.export(descriptor.upstreamUrls, File(path));
+      await _exporter.export(
+        descriptor.upstreamUrls,
+        File(path),
+        onProgress: (progress) => tasks.update(
+          TaskKind.export,
+          videoId,
+          fraction: progress.fraction,
+          detail: progress.describe(),
+        ),
+      );
       log.add('[$videoId] 公式動画を書き出しました: $path');
       return path;
     } on Object catch (error) {
       log.add('[$videoId] 公式動画を書き出せません: $error');
       rethrow;
     } finally {
+      tasks.end(TaskKind.export, videoId);
       exportingVideos.value = <String>{...exportingVideos.value}
         ..remove(videoId);
     }

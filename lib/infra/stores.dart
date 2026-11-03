@@ -101,7 +101,13 @@ class ManualVideoStore {
   }
 
   /// `source` を複製して登録します。呼び出し側は事前に該当動画の配信を止めます。
-  Future<File> import(String videoId, File source) async {
+  ///
+  /// [onProgress] には、複製したバイト数と全体のバイト数が届きます。
+  Future<File> import(
+    String videoId,
+    File source, {
+    void Function(int copied, int total)? onProgress,
+  }) async {
     if (normalizeVideoAssetId(videoId) != videoId || videoId.isEmpty) {
       throw ArgumentError('動画IDが不正です');
     }
@@ -122,7 +128,20 @@ class ManualVideoStore {
         p.join(directory.path, '$videoId.${randomHex(8)}.importing'),
       );
       try {
-        await source.copy(temporary.path);
+        var copied = 0;
+        final sink = temporary.openWrite();
+        try {
+          await sink.addStream(
+            source.openRead().map((chunk) {
+              copied += chunk.length;
+              onProgress?.call(copied, length);
+              return chunk;
+            }),
+          );
+          await sink.flush();
+        } finally {
+          await sink.close();
+        }
         if (await temporary.length() != length) {
           throw FileSystemException('動画の複製を検証できませんでした', source.path);
         }

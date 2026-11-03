@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'ffmpeg_progress.dart';
+
 /// FFmpegでDAM互換のHLS(720p H.264 baseline + AAC)を生成する1回分の処理です。
 ///
 /// 入力候補（差し替え動画、または上流high→low）を順に試し、成功した時点で終わります。
@@ -15,6 +17,7 @@ class Transcode {
     required this.skipMs,
     required this.outputDirectory,
     required this.onLog,
+    this.onProgress,
   });
 
   static final RegExp segmentName = RegExp(r'^segment_[0-9]{6}\.ts$');
@@ -25,6 +28,9 @@ class Transcode {
   final int skipMs;
   final Directory outputDirectory;
   final void Function(String message) onLog;
+
+  /// 変換済みの時間と、全体の長さ（分かれば）が届きます。
+  final void Function(MediaProgress progress)? onProgress;
 
   final Completer<void> _playable = Completer<void>();
   final Completer<bool> _finished = Completer<bool>();
@@ -85,6 +91,21 @@ class Transcode {
   Future<bool> _attempt(String source) async {
     final process = await Process.start(ffmpeg, arguments(source));
     _process = process;
+    onProgress?.call(const MediaProgress(processed: Duration.zero));
+    // 全体の長さは変換と並行して調べます（変換の開始を遅らせないため）。
+    Duration? total;
+    unawaited(
+      probeDuration(ffmpeg, source).then((duration) {
+        if (duration == null) return;
+        final rest = duration - Duration(milliseconds: skipMs);
+        total = rest > Duration.zero ? rest : duration;
+      }),
+    );
+    final progressDone = parseFfmpegProgress(process.stdout)
+        .forEach((processed) {
+          onProgress?.call(MediaProgress(processed: processed, total: total));
+        })
+        .catchError((Object _) {});
     final errors = <String>[];
     final stderrDone = process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
@@ -95,7 +116,6 @@ class Transcode {
           if (errors.length > 20) errors.removeAt(0);
         })
         .catchError((Object _) {});
-    unawaited(process.stdout.drain<void>().catchError((Object _) {}));
 
     final watcher = Timer.periodic(const Duration(milliseconds: 150), (_) {
       if (!_playable.isCompleted) unawaited(_checkPlayable());
@@ -103,6 +123,7 @@ class Transcode {
     final code = await process.exitCode;
     watcher.cancel();
     await stderrDone;
+    await progressDone;
     _process = null;
     if (_cancelled) return false;
     final complete = code == 0 && await _isComplete();
@@ -149,6 +170,7 @@ class Transcode {
       '-hide_banner',
       '-loglevel',
       'error',
+      ...ffmpegProgressArguments,
       '-fflags',
       '+genpts',
       if (isRemote) ...<String>['-rw_timeout', '15000000'],

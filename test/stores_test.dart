@@ -118,6 +118,27 @@ void main() {
       expect(await store.load(), isEmpty);
     });
 
+    test('取り込みの進み具合を、複製したバイト数で知らせる', () async {
+      final store = ManualVideoStore(Directory(p.join(temp.path, 'videos')));
+      // 読み込みが複数回に分かれる大きさ（約3MB）
+      final bytes = List<int>.generate(3 * 1024 * 1024 + 7, (i) => i % 251);
+      final source = File(p.join(temp.path, 'big.mp4'))
+        ..writeAsBytesSync(bytes);
+      final reports = <(int, int)>[];
+      final stored = await store.import(
+        '6184-92',
+        source,
+        onProgress: (copied, total) => reports.add((copied, total)),
+      );
+      expect(reports.length, greaterThan(1));
+      expect(reports.every((r) => r.$2 == bytes.length), isTrue);
+      for (var i = 1; i < reports.length; i++) {
+        expect(reports[i].$1, greaterThan(reports[i - 1].$1));
+      }
+      expect(reports.last.$1, bytes.length);
+      expect(stored.readAsBytesSync(), bytes);
+    });
+
     test('不正なIDや形式は拒否する', () async {
       final store = ManualVideoStore(Directory(p.join(temp.path, 'videos')));
       final txt = File(p.join(temp.path, 'a.txt'))..writeAsBytesSync([1]);

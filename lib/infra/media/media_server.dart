@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../../domain/tracks.dart';
 import '../random_token.dart';
+import 'ffmpeg_progress.dart';
 import 'manifest_rewriter.dart';
 import 'transcoder.dart';
 
@@ -27,6 +28,7 @@ class MediaServer {
     required this.ffmpeg,
     required this.onStage,
     required this.onLog,
+    this.onProgress,
     this.progressive = false,
   });
 
@@ -43,6 +45,9 @@ class MediaServer {
   final String ffmpeg;
   final StageHandler onStage;
   final void Function(String message) onLog;
+
+  /// 変換の進み具合です。変換が終わった（成功・失敗・中止）ときは `null` が届きます。
+  final void Function(String videoId, MediaProgress? progress)? onProgress;
 
   /// `true` なら先頭2セグメント完成時点で生成途中のプレイリストを返します。
   /// DAMの動画再生が途中のプレイリストを正しく扱うかは実機確認が必要なため、
@@ -251,6 +256,7 @@ class MediaServer {
       skipMs: job.skipMs,
       outputDirectory: Directory(p.join(hlsDirectory.path, job.id)),
       onLog: (message) => onLog('[${job.videoId}] $message'),
+      onProgress: (progress) => onProgress?.call(job.videoId, progress),
     )..start();
     unawaited(
       transcode.playable.then((_) {
@@ -259,6 +265,7 @@ class MediaServer {
     );
     unawaited(
       transcode.finished.then((ok) {
+        onProgress?.call(job.videoId, null);
         if (!ok) {
           onStage(
             job.videoId,

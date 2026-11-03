@@ -240,3 +240,109 @@ class UpdateState extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+/// 時間のかかる作業の種類です。
+enum TaskKind {
+  import('取り込み'),
+  transcode('変換'),
+  export('書き出し');
+
+  const TaskKind(this.label);
+  final String label;
+}
+
+/// 時間のかかる作業1件の進み具合です。
+class TaskProgress {
+  TaskProgress._(this.kind, this.videoId, {DateTime? now})
+    : started = now ?? DateTime.now();
+
+  final TaskKind kind;
+  final String videoId;
+  final DateTime started;
+
+  /// 0〜1。全体の量が分からないときは `null` です。
+  double? fraction;
+
+  /// `120.5MB / 300.0MB` や `1:23 / 4:40` などの補足です。
+  String detail = '';
+
+  /// `変換中 42%` の形です。
+  String get label {
+    final f = fraction;
+    return f == null
+        ? '${kind.label}中'
+        : '${kind.label}中 ${(f * 100).floor()}%';
+  }
+
+  /// 残り時間の目安です。進み具合から推定するため、始まったばかりのときは `null` です。
+  Duration? remaining({DateTime? now}) {
+    final f = fraction;
+    if (f == null || f < 0.03 || f >= 1) return null;
+    final elapsed = (now ?? DateTime.now()).difference(started);
+    return elapsed * ((1 - f) / f);
+  }
+}
+
+/// 取り込み・変換・書き出しなど、裏で動いている作業の進み具合です。
+///
+/// 進捗の更新は頻繁に届くため、画面への通知は 0.25 秒に1回までにまとめます。
+/// 作業の開始と終了はすぐに通知します。
+class TaskState extends ChangeNotifier {
+  final LinkedHashMap<String, TaskProgress> _tasks =
+      LinkedHashMap<String, TaskProgress>();
+  Timer? _pending;
+
+  /// 始まった順の作業一覧です。
+  List<TaskProgress> get all => _tasks.values.toList(growable: false);
+
+  bool get isEmpty => _tasks.isEmpty;
+
+  /// その動画で最後に始まった作業です。
+  TaskProgress? forVideo(String videoId) {
+    TaskProgress? found;
+    for (final task in _tasks.values) {
+      if (task.videoId == videoId) found = task;
+    }
+    return found;
+  }
+
+  bool isRunning(TaskKind kind, String videoId) =>
+      _tasks.containsKey(_key(kind, videoId));
+
+  /// 作業の進み具合を記録します。まだ始まっていなければ始めます。
+  void update(
+    TaskKind kind,
+    String videoId, {
+    double? fraction,
+    String? detail,
+  }) {
+    final key = _key(kind, videoId);
+    final task = _tasks[key];
+    if (task == null) {
+      _tasks[key] = TaskProgress._(kind, videoId)
+        ..fraction = fraction
+        ..detail = detail ?? '';
+      notifyListeners();
+      return;
+    }
+    if (fraction != null) task.fraction = fraction;
+    if (detail != null) task.detail = detail;
+    _pending ??= Timer(const Duration(milliseconds: 250), () {
+      _pending = null;
+      notifyListeners();
+    });
+  }
+
+  void end(TaskKind kind, String videoId) {
+    if (_tasks.remove(_key(kind, videoId)) == null) return;
+    notifyListeners();
+  }
+
+  static String _key(TaskKind kind, String videoId) => '${kind.name}:$videoId';
+
+  @override
+  void dispose() {
+    _pending?.cancel();
+    super.dispose();
+  }
+}
