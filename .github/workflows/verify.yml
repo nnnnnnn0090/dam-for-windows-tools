@@ -27,7 +27,7 @@ jobs:
           "flutter=$($config.toolchain.flutter)" >> $env:GITHUB_OUTPUT
           "rust=$($config.toolchain.rust)" >> $env:GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: tool/cache
           key: tool-cache-${{ hashFiles('tool/release.json') }}
