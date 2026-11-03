@@ -8,6 +8,33 @@ import '../domain/tracks.dart';
 import '../domain/update.dart';
 import '../infra/helper/dam_link.dart';
 
+/// 同じキーを、間を空けずに決まった回数続けて押したかを判定します（隠し機能の表示用）。
+class KeySequence {
+  KeySequence({
+    required this.count,
+    this.maximumGap = const Duration(seconds: 2),
+  });
+
+  final int count;
+  final Duration maximumGap;
+  int _pressed = 0;
+  DateTime? _last;
+
+  /// キーが押されるたびに呼びます。[count] 回目の連続押下で `true` を返します。
+  bool press({required bool matches, required DateTime at}) {
+    final last = _last;
+    if (!matches || (last != null && at.difference(last) > maximumGap)) {
+      _pressed = 0;
+    }
+    _last = at;
+    if (!matches) return false;
+    _pressed++;
+    if (_pressed < count) return false;
+    _pressed = 0;
+    return true;
+  }
+}
+
 /// 診断ログです。通知は100msごとにまとめ、ログが多くても画面を再構築し過ぎません。
 class LogState extends ChangeNotifier {
   static const int maximumEntries = 500;

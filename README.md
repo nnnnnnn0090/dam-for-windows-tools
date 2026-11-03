@@ -4,7 +4,7 @@ DAM for Windowsに、採点遅延補正・動画差し替え・表現技法表�
 
 ![DAM for Windows Toolsのメイン画面](docs/images/app-main.png)
 
-対象は **DAM for Windows 1.1.7.0**、OSは **Windows 10/11 x64** です。必要な実行環境は配布ZIPに入っているため、Flutter、Node.js、FFmpegなどを別途インストールする必要はありません。
+対象は **DAM for Windows 1.1.7.0**、OSは **Windows 10/11 x64** です。必要な実行環境は配布ZIPに入っているため、FlutterやFFmpegなどを別途インストールする必要はありません。
 
 > [!IMPORTANT]
 > 本ツールは非公式です。第一興商株式会社およびDAMの権利者による公認・保証・サポートはありません。正規に利用できる家庭内環境で、サービスの規約と法令に従って使用してください。

@@ -106,12 +106,14 @@ function resolveDescriptor(highUrl, lowUrl) {
 function emitCurrentPlaybackMetadata(descriptor) {
   const metadata = DAM_TARGET_MANIFEST.hooks.currentPlaybackMetadata;
   try {
-    if (rva(metadata.currentVideoIdRva).readU8() === 0) return;
+    if (!descriptor.videoId) return;
+    // 再生中レコードの動画IDが今回のURLと一致するときだけ読み、前の曲の情報を通知しません。
+    const recordVideoId = cleanId(safeCString(rva(metadata.currentVideoIdRva), 64));
+    if (recordVideoId !== descriptor.videoId) return;
     const maximum = parseInteger(metadata.capacityChars);
     const artist = cleanText(safeUtf16(rva(metadata.artistRva), maximum));
     const title = cleanText(safeUtf16(rva(metadata.titleRva), maximum));
     if (!artist && !title) return;
-    if (!descriptor.videoId) return;
     send({
       type: 'metadata',
       candidates: [{ ids: [descriptor.videoId], artist, title }],

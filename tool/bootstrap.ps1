@@ -1,9 +1,9 @@
 ﻿# tool/release.json に固定した第三者の入力物を tool/cache へ取得し、SHA-256を検証して
 # ビルドに必要なものを展開します。続けて helper/ の npm 依存を用意します。
+# Node.js と helper/ の依存は、開発時の接続ヘルパーと helper/ の試験にだけ使います（配布物には入れません）。
 #   -Sources       対応ソースの書庫も取得します（配布ビルドで必要）。
-#   -FridaDevkit   Rust版 dam-link 用の frida-core devkit も取得します（未使用なら不要）。
 [CmdletBinding()]
-param([switch]$Sources, [switch]$FridaDevkit)
+param([switch]$Sources)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -81,7 +81,7 @@ if ((Get-Sha256 (Join-Path $cache 'ffmpeg\ffmpeg.exe')) -ne $ffmpeg.executableSh
   throw 'ffmpeg.exe のSHA-256が release.json と一致しません'
 }
 
-# Node.js: 配布物に同梱し、開発時の接続ヘルパー実行と npm にも使います。
+# Node.js: 開発時の接続ヘルパー実行と、helper/ の試験・npm に使います（配布物には入れません）。
 $node = $config.inputs.node
 Expand-Once (Get-VerifiedFile $node) (Join-Path $cache 'node') {
   param($archive, $destination)
@@ -94,12 +94,11 @@ $nodeExe = Join-Path $cache 'node\node.exe'
 $nodeVersion = (& $nodeExe --version).Trim()
 if ($nodeVersion -ne "v$($config.helper.nodeVersion)") { throw "Node.jsの版が違います: $nodeVersion" }
 
-if ($FridaDevkit) {
-  $devkit = $config.inputs.fridaCoreDevkit
-  Expand-Once (Get-VerifiedFile $devkit) (Join-Path $cache 'frida-core-devkit') {
-    param($archive, $destination)
-    Invoke-Native 'Frida devkitの展開' { & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $destination }
-  }
+# frida-core devkit: native/dam-link が静的リンクします。
+$devkit = $config.inputs.fridaCoreDevkit
+Expand-Once (Get-VerifiedFile $devkit) (Join-Path $cache 'frida-core-devkit') {
+  param($archive, $destination)
+  Invoke-Native 'Frida devkitの展開' { & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $destination }
 }
 
 if ($Sources) {

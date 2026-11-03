@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["scoring-overlay", "updater"]
+members = ["dam-link", "scoring-overlay", "updater"]
 
 [workspace.package]
 version = "2.0.0"

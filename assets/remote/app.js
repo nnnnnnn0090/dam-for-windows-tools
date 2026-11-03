@@ -5,81 +5,676 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Created: 2026-08-23
 
-/** IDから画面要素を取得する省略関数です。 */
-const $=id=>document.getElementById(id);
-let state={connected:false,playing:false,paused:false,key:0,damScoring:false,title:'',artist:'',videoId:'',confirmation:null};
-let activeView='search',searchMode='keyword',searchSequence=0,searchRequest=Promise.resolve(),stateRequest=null,reserveKey=0,originalKey=false,scoringRequested=false,playType='standard',busy=false,toastTimer=0,currentSongs=[],selectedSong=null,selectedDetail=null,detailOrigin='search',detailLoading=false,detailSequence=0,historyBusy=false;
-/** 同一OriginのPOST APIを呼び、失敗応答を利用者向け例外へ変換します。 */
-async function api(path,body={}){const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});let data={};try{data=await response.json()}catch(_){}if(!response.ok)throw new Error(data.error||'通信に失敗しました');return data}
-/** textContentだけで安全に文字を設定するDOM要素を生成します。 */
-function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e}
-/** 同梱Lucideスプライトから、装飾用SVGアイコンを生成します。 */
-function icon(name,cls=''){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),use=document.createElementNS('http://www.w3.org/2000/svg','use');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.classList.add('icon');if(cls)svg.classList.add(cls);use.setAttribute('href',`#icon-${name}`);svg.append(use);return svg}
-/** 既存use要素の参照先だけを切り替え、動的ボタンのSVG構造を維持します。 */
-function setIcon(id,name){$(id).setAttribute('href',`#icon-${name}`)}
-/** 動的一覧へ、Lucideアイコンと文字を揃えた操作ボタンを生成します。 */
-function iconButton(label,name,cls=''){const button=node('button',undefined,`withicon${cls?` ${cls}`:''}`);button.type='button';button.append(icon(name),node('span',label));return button}
-/** 短い操作結果を画面下へ表示し、2.2秒後に自動で閉じます。 */
-function toast(text){$('toast').textContent=text;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2200)}
-/** DAMのキー値を♯・♭付きの表示文字列へ変換します。 */
-function keyText(k){return k>0?`♯${k}`:k<0?`♭${-k}`:'0'}
-/** DAM本体の確認状態を、どのタブからでも選べる最前面パネルへ反映します。 */
-function renderConfirmation(confirmation){const active=!!confirmation&&typeof confirmation.message==='string';const panel=$('damConfirmation');panel.hidden=!active;if(!active)return;$('damConfirmationMessage').textContent=confirmation.message||'DAM本体で選択を待っています';const yes=$('damConfirmationYes'),no=$('damConfirmationNo');yes.classList.toggle('selected',confirmation.selected==='yes');no.classList.toggle('selected',confirmation.selected==='no');yes.disabled=no.disabled=busy}
-/** 最新DAM状態をヘッダー・演奏操作・確認画面へ一括反映します。 */
-function renderState(next){state=next;$('lamp').classList.toggle('on',next.connected);$('connection').textContent=next.connected?'DAM接続中':'DAM未接続';const playing=next.playing===true;setIcon('nowIcon',playing?(next.paused?'pause':'play'):'stop');$('nowtitle').textContent=playing?(next.title||'曲名取得中'):'再生中の曲はありません';$('nowartist').textContent=playing?(next.artist||next.videoId||''):'{{PRODUCT_NAME}}';$('keymini').textContent=keyText(next.key||0);$('controlTitle').textContent=playing?(next.title||'曲名取得中'):'再生中の曲はありません';$('controlArtist').textContent=playing?(next.artist||next.videoId||''):'曲を再生すると操作できます';$('keyReset').textContent=keyText(next.key||0);const pause=$('pauseButton');pause.dataset.control=next.paused?'resume':'pause';setIcon('pauseIcon',next.paused?'play':'pause');$('pauseLabel').textContent=next.paused?'再開':'一時停止';const damScore=$('damScoring');damScore.classList.toggle('on',next.damScoring===true);damScore.querySelector('.toggle-state').textContent=next.damScoring?'ON':'OFF';damScore.disabled=!next.connected||busy;document.querySelectorAll('[data-control]').forEach(e=>e.disabled=!playing||busy);renderConfirmation(next.confirmation)}
-/** DAM状態の取得を常に1本へ束ね、応答待ち中の監視要求を積み重ねません。 */
-function refreshState(silent=true){if(stateRequest)return stateRequest;stateRequest=api('api/state').then(renderState).catch(e=>{renderState({...state,connected:false,confirmation:null});if(!silent)toast(e.message)}).finally(()=>{stateRequest=null});return stateRequest}
-/** 前回の状態取得が完了してから次回を予約し、Sidecarの遅延時にも503を防ぎます。 */
-async function pollState(){if(!busy)await refreshState(true);setTimeout(pollState,1000)}
-/** 下部ナビゲーションの表示先を切り替え、一覧画面は移動時に再取得します。 */
-function switchView(name){activeView=name;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('active',e.id===`view-${name}`));document.querySelectorAll('.nav button').forEach(e=>e.classList.toggle('active',e.dataset.view===name));if(name==='queue')refreshQueue();if(name==='history')refreshHistory()}
-document.querySelectorAll('.nav button').forEach(e=>e.onclick=()=>switchView(e.dataset.view));
-$('nowPlaying').onclick=()=>switchView('control');
-/** 前モードの件数と結果行を破棄し、現在モード用の案内を表示します。 */
-function clearSearchResults(message){currentSongs=[];$('resultCount').textContent='';$('results').replaceChildren(node('div',message,'empty'))}
-/** 検索モードを切り替え、前結果を残さず一覧系モードは即時取得します。 */
-function setMode(mode){searchSequence++;searchMode=mode;document.querySelectorAll('.mode').forEach(e=>e.classList.toggle('active',e.dataset.mode===mode));const needs=['keyword','title','artist'].includes(mode);$('search').classList.toggle('hidden',!needs);$('query').placeholder=mode==='title'?'曲名を入力':mode==='artist'?'歌手名を入力':'曲名・歌手名・歌詞を入力';$('searchButton').disabled=false;if(needs){$('searchStatus').textContent='検索語を入力してください';clearSearchResults('検索結果がここに表示されます')}else{clearSearchResults('読み込み中…');runSearch('',mode)}}
-document.querySelectorAll('.mode').forEach(e=>e.onclick=()=>setMode(e.dataset.mode));
-/** 検索を直列化し、モード変更後に届いた古い応答を画面へ反映しません。 */
-async function runSearch(query,mode=searchMode,statusLabel=''){const sequence=++searchSequence;$('searchButton').disabled=true;$('searchStatus').textContent='検索しています…';clearSearchResults('読み込み中…');const request=searchRequest.catch(()=>{}).then(()=>sequence===searchSequence&&mode===searchMode?api('api/search',{query,mode}):null);searchRequest=request;try{const data=await request;if(data===null||sequence!==searchSequence||mode!==searchMode)return;const songs=Array.isArray(data.songs)?data.songs:[];currentSongs=songs;renderSongs(songs);$('resultCount').textContent=`${songs.length}件`;$('searchStatus').textContent=statusLabel||(mode==='ranking'?'人気曲ランキング':mode==='new'?'新曲一覧':mode==='favorites'?'お気に入り一覧':`検索結果 ${songs.length}件`)}catch(e){if(sequence!==searchSequence||mode!==searchMode)return;$('searchStatus').textContent=e.message;$('results').replaceChildren(node('div',e.message,'empty'))}finally{if(sequence===searchSequence)$('searchButton').disabled=false}}
-$('search').onsubmit=e=>{e.preventDefault();const q=$('query').value.trim();if(!q){$('searchStatus').textContent='検索語を入力してください';return}runSearch(q)};
-/** 曲情報と選択処理から、詳細ページへ進む共通の一覧行を生成します。 */
-function makeSongRow(song,onSelect){const row=node('button',undefined,'selectrow'),text=node('div'),chevron=node('div',undefined,'chevron');row.type='button';text.append(node('div',song.title||'曲名不明','songtitle'),node('div',`${song.artist||'アーティスト不明'}${song.videoId?`　${song.videoId}`:''}`,'songmeta'));chevron.append(icon('chevron-right'));row.append(text,chevron);row.onclick=onSelect;return row}
-/** 曲と歌手を種類別の一覧行へ変換し、空結果も明示します。 */
-function renderSongs(songs){const list=$('results');list.replaceChildren();if(!songs.length){list.append(node('div','該当する曲はありません','empty'));return}for(const song of songs){if(song.kind==='artist'){const row=node('button',undefined,'selectrow'),text=node('div'),chevron=node('div',undefined,'chevron');row.type='button';text.append(node('div',song.artist||'歌手名不明','songtitle artistmark'),node('div','この歌手の曲を見る','songmeta'));chevron.append(icon('chevron-right'));row.append(text,chevron);row.onclick=()=>showArtistSongs(song.artist);list.append(row);continue}list.append(makeSongRow(song,()=>openDetail(song,'search')))}}
-/** 選択歌手名をキーワード検索へ渡し、その歌手の曲一覧を表示します。 */
-function showArtistSongs(artist){if(!artist)return;switchView('search');setMode('keyword');$('query').value=artist;runSearch(artist,'keyword',`${artist}の曲`)}
-/** 曲を開くたびにキー・採点・演奏タイプの予約条件を初期状態へ戻します。 */
-function resetReservationOptions(){reserveKey=0;originalKey=false;scoringRequested=false;playType='standard';renderReservationOptions()}
-/** 曲の対応機能と処理状態に合わせて、予約条件部品の表示・有効状態を更新します。 */
-function renderReservationOptions(){const supported=Array.isArray(selectedDetail?.playTypes)?selectedDetail.playTypes:[];$('reserveKey').textContent=keyText(reserveKey);$('reserveKeyDown').disabled=detailLoading||!selectedDetail||originalKey||reserveKey<=-7||busy;$('reserveKeyUp').disabled=detailLoading||!selectedDetail||originalKey||reserveKey>=7||busy;$('originalKey').disabled=detailLoading||!selectedDetail||busy;$('originalKeyLabel').textContent=selectedDetail?`原曲キー ${keyText(selectedDetail.originalKey||0)}`:'原曲キー';$('originalKey').classList.toggle('on',originalKey);$('scoringDefault').disabled=$('scoringOn').disabled=detailLoading||!selectedDetail||busy;$('scoringDefault').classList.toggle('on',!scoringRequested);$('scoringOn').classList.toggle('on',scoringRequested);document.querySelectorAll('[data-play-type]').forEach(e=>{e.hidden=!supported.includes(e.dataset.playType);e.disabled=detailLoading||busy;e.classList.toggle('on',e.dataset.playType===playType)});const canReserve=!detailLoading&&!!selectedDetail&&supported.length>0&&!busy;$('reserveNormal').disabled=$('reserveCutIn').disabled=!canReserve;$('detailFavorite').disabled=detailLoading||busy||!selectedSong?.token}
-$('reserveKeyDown').onclick=()=>{reserveKey=Math.max(-7,reserveKey-1);renderReservationOptions()};$('reserveKeyUp').onclick=()=>{reserveKey=Math.min(7,reserveKey+1);renderReservationOptions()};$('originalKey').onclick=()=>{originalKey=!originalKey;renderReservationOptions()};$('scoringDefault').onclick=()=>{scoringRequested=false;renderReservationOptions()};$('scoringOn').onclick=()=>{scoringRequested=true;renderReservationOptions()};document.querySelectorAll('[data-play-type]').forEach(e=>e.onclick=()=>{playType=e.dataset.playType;renderReservationOptions()});
-/** 選択曲の詳細を取得し、古い非同期応答を無視して詳細ページへ反映します。 */
-async function openDetail(song,origin){const sequence=++detailSequence;selectedSong=song;selectedDetail=null;detailLoading=true;detailOrigin=origin;resetReservationOptions();$('detailTitle').textContent=song.title||'曲名不明';$('detailArtist').textContent=song.artist||'アーティスト不明';$('detailArtist').disabled=!song.artist;$('artistSongs').disabled=!song.artist;$('detailId').textContent=song.videoId||'曲番号を取得しています';$('detailStartLyric').textContent='取得中…';$('detailOriginalKey').textContent='取得中…';$('detailFavorite').classList.toggle('on',song.favorite===true);$('detailMessage').textContent='曲情報を取得しています…';switchView('detail');renderReservationOptions();try{const data=await api('api/detail',{token:song.token});if(sequence!==detailSequence)return;const detail=data.detail;if(!detail||!Array.isArray(detail.playTypes))throw new Error('曲情報を取得できません');selectedDetail=detail;if(detail.videoId){song.videoId=detail.videoId;$('detailId').textContent=detail.videoId}$('detailStartLyric').textContent=detail.startLyric||'情報なし';$('detailOriginalKey').textContent=keyText(detail.originalKey||0);if(!detail.playTypes.includes(playType))playType=detail.playTypes.includes('standard')?'standard':detail.playTypes[0]||'standard';$('detailMessage').textContent=detail.playTypes.length?'':'予約可能な演奏タイプがありません'}catch(e){if(sequence!==detailSequence)return;$('detailStartLyric').textContent='取得できません';$('detailOriginalKey').textContent='取得できません';$('detailMessage').textContent=e.message}finally{if(sequence===detailSequence){detailLoading=false;renderReservationOptions()}}}
-$('detailBack').onclick=()=>switchView(detailOrigin);$('detailArtist').onclick=()=>showArtistSongs(selectedSong?.artist||'');$('artistSongs').onclick=()=>showArtistSongs(selectedSong?.artist||'');
-/** 現在のキー・採点・演奏タイプを通常または割り込み予約として送信します。 */
-async function reserveSelected(cutIn){const song=selectedSong;if(!song||!song.token||!selectedDetail||!selectedDetail.playTypes.includes(playType)||busy)return;busy=true;renderReservationOptions();$('detailMessage').textContent='予約しています…';const mode=cutIn?'cutIn':originalKey?'originalKey':'normal';try{const data=await api('api/reserve',{token:song.token,mode,key:reserveKey,scoring:scoringRequested,playType}),message=data.message||(data.accepted?'予約しました':'予約できませんでした');$('detailMessage').textContent=message;toast(message);if(data.accepted)refreshQueue(true)}catch(e){$('detailMessage').textContent=e.message;toast(e.message)}finally{busy=false;renderReservationOptions()}}
-$('reserveNormal').onclick=()=>reserveSelected(false);$('reserveCutIn').onclick=()=>reserveSelected(true);
-/** 選択曲のお気に入り状態を反転し、DAMの確定結果を詳細画面へ反映します。 */
-async function favoriteSelected(){const song=selectedSong;if(!song||!song.token||detailLoading||busy)return;busy=true;renderReservationOptions();const wanted=!song.favorite;try{const data=await api('api/favorite',{token:song.token,favorite:wanted});if(data.accepted){song.favorite=data.favorite;$('detailFavorite').classList.toggle('on',song.favorite)}toast(data.message||'更新しました')}catch(e){toast(e.message)}finally{busy=false;renderReservationOptions()}}
-$('detailFavorite').onclick=favoriteSelected;
-/** 予約順・割り込み・上下移動・取消を現在の予約一覧として描画します。 */
-function renderQueue(rows){const list=$('queue');list.replaceChildren();$('queueCount').textContent=`${rows.length}曲`;if(!rows.length){list.append(node('div','予約はありません','empty'));return}const normalCount=rows.filter(r=>!r.cutIn).length;rows.forEach(row=>{const item=node('article',undefined,'queueitem'),order=node('div',row.cutIn?'割込':String(row.index+1),`orderno${row.cutIn?' cut':''}`),body=node('div',undefined,'queuebody'),actions=node('div',undefined,'queueactions');body.append(node('div',row.title||'曲名取得中','songtitle'),node('div',row.artist||'アーティスト取得中','songmeta'));if(!row.cutIn){const up=iconButton('上へ','arrow-up'),down=iconButton('下へ','arrow-down');up.disabled=row.index===0;down.disabled=row.index>=normalCount-1;up.onclick=()=>queueAction('moveUp',row.token);down.onclick=()=>queueAction('moveDown',row.token);actions.append(up,down)}const remove=iconButton('取消','trash','remove');remove.onclick=()=>queueAction('remove',row.token);actions.append(remove);body.append(actions);item.append(order,body);list.append(item)})}
-/** 最新予約一覧を取得し、定期更新時は通信エラー通知を抑えます。 */
-async function refreshQueue(silent=false){try{const data=await api('api/queue');renderQueue(Array.isArray(data.rows)?data.rows:[])}catch(e){if(!silent)toast(e.message)}}
-/** 指定予約の取消または順序変更を行い、失敗時は最新一覧を再取得します。 */
-async function queueAction(action,token){try{const data=await api('api/queue-action',{action,token});renderQueue(Array.isArray(data.rows)?data.rows:[]);toast(action==='remove'?'予約を取り消しました':'予約順を変更しました')}catch(e){toast(e.message);refreshQueue(true)}}
-$('refreshQueue').onclick=()=>refreshQueue();
-/** DAM本体の演奏履歴を、曲詳細へ進める一覧として描画します。 */
-function renderHistory(rows){const list=$('history');list.replaceChildren();$('historyCount').textContent=`${rows.length}曲`;if(!rows.length){list.append(node('div','履歴はありません','empty'));return}rows.forEach(row=>list.append(makeSongRow(row,()=>openHistorySong(row))))}
-/** 履歴行の多重押下を防ぎながら、予約可能な曲詳細を開きます。 */
-async function openHistorySong(row){if(historyBusy||!row||!row.token)return;historyBusy=true;try{await openDetail(row,'history')}finally{historyBusy=false}}
-/** DAM本体由来の履歴を再取得し、定期更新時は通信エラー通知を抑えます。 */
-async function refreshHistory(silent=false){try{const data=await api('api/history');renderHistory(Array.isArray(data.rows)?data.rows:[])}catch(e){if(!silent)toast(e.message)}}
-$('refreshHistory').onclick=()=>refreshHistory();
-$('damScoring').onclick=async()=>{if(!state.connected||busy)return;const wanted=state.damScoring!==true;busy=true;renderState(state);try{renderState(await api('api/control',{action:wanted?'scoringOn':'scoringOff'}));toast(`ホームの採点を${wanted?'ON':'OFF'}にしました`)}catch(e){toast(e.message)}finally{busy=false;renderState(state)}};
-document.querySelectorAll('[data-control]').forEach(button=>button.onclick=async()=>{const action=button.dataset.control;if(action==='stop'&&!confirm('現在の演奏を停止しますか？'))return;busy=true;renderState(state);try{renderState(await api('api/control',{action}));toast(action==='restart'?'最初から歌いなおします':action==='stop'?'演奏を停止しました':action==='pause'?'一時停止しました':action==='resume'?'再開しました':'キーを変更しました')}catch(e){toast(e.message)}finally{busy=false;renderState(state)}});
-/** DAM本体に表示中の確認へ、選んだ「はい／いいえ」を同じ応答経路で送ります。 */
-async function answerDamConfirmation(yes){if(!state.confirmation||busy)return;busy=true;renderState(state);try{renderState(await api('api/control',{action:yes?'confirmYes':'confirmNo'}));toast(`「${yes?'はい':'いいえ'}」を選択しました`)}catch(e){toast(e.message)}finally{busy=false;renderState(state)}}
-$('damConfirmationYes').onclick=()=>answerDamConfirmation(true);$('damConfirmationNo').onclick=()=>answerDamConfirmation(false);
-renderReservationOptions();refreshState(false).finally(()=>setTimeout(pollState,1000));setInterval(()=>{if(activeView==='queue')refreshQueue(true)},5000);
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+const all = (selector) => document.querySelectorAll(selector);
+
+const LIST_TITLES = {
+  ranking: 'ランキング',
+  new: '新曲',
+  favorites: 'お気に入り',
+  history: 'りれき',
+};
+const MODE_PLACEHOLDERS = {
+  keyword: '曲名 / 歌手名 / キーワードでさがす',
+  title: '曲名でさがす',
+  artist: '歌手名でさがす',
+};
+
+let state = { connected: false, playing: false, paused: false, key: 0, damScoring: false, title: '', artist: '', videoId: '', confirmation: null };
+let stateRequest = null;
+let busy = false;
+let toastTimer = 0;
+
+let listKind = 'search';
+let searchMode = 'keyword';
+let listQuery = '';
+let listSequence = 0;
+let listRequest = Promise.resolve();
+
+let selectedSong = null;
+let selectedDetail = null;
+let detailLoading = false;
+let detailSequence = 0;
+let reserveKey = 0;
+let scoringRequested = false;
+let playType = 'standard';
+
+let openDrawerName = '';
+let drawerTab = 'queue';
+let queueRows = [];
+let selectedQueueToken = '';
+
+// ---- 共通 ----
+
+/** 同一OriginのPOST APIを呼び、失敗応答を利用者向けの例外にします。 */
+async function api(path, body = {}) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  let data = {};
+  try { data = await response.json(); } catch (_) { /* 本文なし */ }
+  if (!response.ok) throw new Error(data.error || '通信に失敗しました');
+  return data;
+}
+
+/** textContent だけで文字を入れた要素を作ります。 */
+function node(tag, text, className) {
+  const element = document.createElement(tag);
+  if (text !== undefined) element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+
+/** 同梱スプライトのアイコンを作ります。 */
+function icon(name) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  const use = document.createElementNS(ns, 'use');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('icon');
+  use.setAttribute('href', `#icon-${name}`);
+  svg.append(use);
+  return svg;
+}
+
+function toast(text) {
+  $('toast').textContent = text;
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), 2200);
+}
+
+/** DAMと同じ表記（標準・♯n・♭n）です。 */
+function keyText(key) {
+  return key > 0 ? `♯${key}` : key < 0 ? `♭${-key}` : '標準';
+}
+
+// ---- 演奏状態 ----
+
+function renderState(next) {
+  state = next;
+  const playing = next.playing === true;
+  $('lamp').classList.toggle('on', next.connected === true);
+  $('connection').textContent = next.connected ? 'DAM接続中' : 'DAM未接続';
+
+  $('nowTitle').textContent = playing ? (next.title || '曲名取得中') : '再生中の曲はありません';
+  $('nowArtist').textContent = playing ? (next.artist || '—') : '—';
+  $('nowId').textContent = playing ? (next.videoId || '') : '';
+  $('nowKey').textContent = keyText(next.key || 0);
+  const playPause = $('playPause');
+  playPause.dataset.control = next.paused ? 'resume' : 'pause';
+  $('playPauseIcon').setAttribute('href', next.paused ? '#icon-play' : '#icon-pause');
+  all('[data-control]').forEach((button) => { button.disabled = !playing || busy; });
+  $('keyStop').disabled = !playing || busy;
+
+  const scoring = next.damScoring === true;
+  $('keyScoring').classList.toggle('on', scoring);
+  $('keyScoring').disabled = !next.connected || busy;
+  $('playerScoring').classList.toggle('on', scoring);
+  $('playerScoring').querySelector('b').textContent = scoring ? 'ON' : 'OFF';
+  $('playerScoring').disabled = !next.connected || busy;
+
+  renderConfirmation(next.confirmation);
+  if (openDrawerName === 'queue' && drawerTab === 'queue') renderQueue();
+}
+
+/** 状態取得を1本にまとめ、応答待ちの間は要求を積み重ねません。 */
+function refreshState(silent = true) {
+  if (stateRequest) return stateRequest;
+  stateRequest = api('api/state')
+    .then(renderState)
+    .catch((error) => {
+      renderState({ ...state, connected: false, confirmation: null });
+      if (!silent) toast(error.message);
+    })
+    .finally(() => { stateRequest = null; });
+  return stateRequest;
+}
+
+async function pollState() {
+  if (!busy) await refreshState(true);
+  setTimeout(pollState, 1000);
+}
+
+/** 演奏操作を送り、結果の状態を反映します。 */
+async function control(action, message) {
+  if (busy) return;
+  busy = true;
+  renderState(state);
+  try {
+    renderState(await api('api/control', { action }));
+    if (message) toast(message);
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    busy = false;
+    renderState(state);
+  }
+}
+
+const CONTROL_MESSAGES = {
+  pause: '一時停止しました',
+  resume: '再開しました',
+  restart: '最初から歌いなおします',
+  stop: '演奏を中止しました',
+  keyUp: 'キーを上げました',
+  keyDown: 'キーを下げました',
+  keyReset: 'キーを標準に戻しました',
+};
+
+function runControl(action) {
+  if (action === 'stop' && !confirm('演奏を中止しますか？')) return;
+  control(action, CONTROL_MESSAGES[action]);
+}
+
+function toggleScoring() {
+  if (!state.connected) return;
+  const wanted = state.damScoring !== true;
+  control(wanted ? 'scoringOn' : 'scoringOff', `採点を${wanted ? 'ON' : 'OFF'}にしました`);
+}
+
+function renderConfirmation(confirmation) {
+  const active = !!confirmation && typeof confirmation.message === 'string';
+  $('damConfirmation').hidden = !active;
+  if (!active) return;
+  $('damConfirmationMessage').textContent = confirmation.message || 'DAM本体で選択を待っています';
+  $('damConfirmationYes').classList.toggle('selected', confirmation.selected === 'yes');
+  $('damConfirmationNo').classList.toggle('selected', confirmation.selected === 'no');
+  $('damConfirmationYes').disabled = $('damConfirmationNo').disabled = busy;
+}
+
+function answerConfirmation(yes) {
+  if (!state.confirmation) return;
+  control(yes ? 'confirmYes' : 'confirmNo', `「${yes ? 'はい' : 'いいえ'}」を選択しました`);
+}
+
+// ---- 画面と分類タブ ----
+
+function showView(name) {
+  all('.view').forEach((view) => view.classList.toggle('active', view.id === `view-${name}`));
+  if (name === 'home') $('hits').textContent = '';
+}
+
+function highlightTab(name) {
+  all('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === name));
+}
+
+function selectTab(name) {
+  if (name === 'home') {
+    highlightTab('home');
+    showView('home');
+    return;
+  }
+  openList(name);
+}
+
+function setSearchMode(mode) {
+  searchMode = mode;
+  $('query').placeholder = MODE_PLACEHOLDERS[mode];
+  all('.segment').forEach((segment) => segment.classList.toggle('active', segment.dataset.mode === mode));
+}
+
+/** 一覧を開き、検索または一覧取得を行います。古い応答は表示しません。 */
+async function openList(kind, query = '') {
+  listKind = kind;
+  listQuery = query;
+  highlightTab(kind === 'search' ? 'home' : kind);
+  showView('list');
+  $('segments').hidden = kind !== 'search';
+  $('listTitle').textContent = kind === 'search' ? `# ${query}` : `# ${LIST_TITLES[kind]}`;
+  $('hits').textContent = '';
+  $('results').replaceChildren(node('div', '読み込み中…', 'empty'));
+  $('view-list').scrollTop = 0;
+
+  const sequence = ++listSequence;
+  const mode = kind === 'search' ? searchMode : kind;
+  const request = listRequest.catch(() => {}).then(() => {
+    if (sequence !== listSequence) return null;
+    return kind === 'history' ? api('api/history') : api('api/search', { query, mode });
+  });
+  listRequest = request;
+  try {
+    const data = await request;
+    if (data === null || sequence !== listSequence) return;
+    const songs = Array.isArray(data.songs) ? data.songs : Array.isArray(data.rows) ? data.rows : [];
+    $('hits').textContent = String(songs.length);
+    renderSongs($('results'), songs, kind === 'ranking');
+  } catch (error) {
+    if (sequence !== listSequence) return;
+    $('results').replaceChildren(node('div', error.message, 'empty'));
+  }
+}
+
+function songRow(song, rank) {
+  const row = node('button', undefined, 'songrow');
+  row.type = 'button';
+  let mark;
+  if (rank) {
+    mark = node('span', String(rank), rank <= 3 ? 'rank' : 'rank plain');
+  } else {
+    mark = node('span', undefined, 'rowmark');
+    mark.append(icon(song.kind === 'artist' ? 'user' : 'music'));
+  }
+  const text = node('span', undefined, 'rowtext');
+  if (song.kind === 'artist') {
+    text.append(node('span', song.artist || '歌手名不明', 'rowtitle'));
+    const more = node('span', undefined, 'rowartist');
+    more.append(node('span', 'この歌手の曲'));
+    text.append(more);
+    row.onclick = () => searchArtist(song.artist);
+  } else {
+    const artist = node('span', undefined, 'rowartist');
+    artist.append(icon('user'), node('span', song.artist || '—'));
+    text.append(node('span', song.title || '曲名不明', 'rowtitle'), artist);
+    row.onclick = () => openDetail(song);
+  }
+  row.append(mark, text);
+  return row;
+}
+
+function renderSongs(list, songs, ranked) {
+  list.replaceChildren();
+  if (!songs.length) {
+    list.append(node('div', '該当する曲はありません', 'empty'));
+    return;
+  }
+  songs.forEach((song, index) => list.append(songRow(song, ranked ? index + 1 : 0)));
+}
+
+function searchArtist(artist) {
+  if (!artist) return;
+  closeDetail();
+  closeDrawers();
+  setSearchMode('keyword');
+  $('query').value = artist;
+  openList('search', artist);
+}
+
+function submitSearch() {
+  const query = $('query').value.trim();
+  if (!query) {
+    toast('さがす言葉を入れてください');
+    $('query').focus();
+    return;
+  }
+  $('query').blur();
+  openList('search', query);
+}
+
+/** 「もどる」：開いている画面を1段だけ閉じます。 */
+function goBack() {
+  if (!$('detail').hidden) closeDetail();
+  else if (openDrawerName) closeDrawers();
+  else if ($('view-list').classList.contains('active')) selectTab('home');
+}
+
+function goTop() {
+  closeDetail();
+  closeDrawers();
+  selectTab('home');
+}
+
+// ---- 曲の詳細 ----
+
+function supportedPlayTypes() {
+  return Array.isArray(selectedDetail?.playTypes) ? selectedDetail.playTypes : [];
+}
+
+function renderDetail() {
+  const supported = supportedPlayTypes();
+  const ready = !detailLoading && !!selectedDetail && !busy;
+  $('featureArtist').classList.toggle('on', supported.includes('artistVideo'));
+  $('featureGuide').classList.toggle('on', supported.includes('guideVocal'));
+
+  const guide = $('optionGuide');
+  guide.disabled = !ready || !supported.includes('guideVocal');
+  guide.classList.toggle('on', playType === 'guideVocal');
+  guide.querySelector('b').textContent = playType === 'guideVocal' ? 'ON' : 'OFF';
+  const artist = $('optionArtist');
+  artist.disabled = !ready || !supported.includes('artistVideo');
+  artist.classList.toggle('on', playType === 'artistVideo');
+  artist.querySelector('b').textContent = playType === 'artistVideo' ? 'ON' : 'OFF';
+  const scoring = $('optionScoring');
+  scoring.disabled = !ready;
+  scoring.classList.toggle('on', scoringRequested);
+  scoring.querySelector('b').textContent = scoringRequested ? 'ON' : '指定なし';
+
+  all('.keydot').forEach((dot, index) => dot.classList.toggle('current', index - 7 === reserveKey));
+  $('keyTrack').setAttribute('aria-valuenow', String(reserveKey));
+  $('reserveKeyDown').disabled = !ready || reserveKey <= -7;
+  $('reserveKeyUp').disabled = !ready || reserveKey >= 7;
+  $('reserveKeyReset').disabled = !ready || reserveKey === 0;
+  const original = selectedDetail ? Number(selectedDetail.originalKey) || 0 : null;
+  const marker = $('keyOriginal');
+  marker.hidden = original === null || original < -7 || original > 7;
+  if (!marker.hidden) marker.style.left = `${((original + 7.5) / 15) * 100}%`;
+
+  const canReserve = ready && supported.includes(playType);
+  $('reserveNormal').disabled = $('reserveCutIn').disabled = $('reserveOriginal').disabled = !canReserve;
+  const favorite = selectedSong?.favorite === true;
+  $('detailFavorite').classList.toggle('on', favorite);
+  $('detailFavorite').disabled = $('detailFavoriteButton').disabled = detailLoading || busy || !selectedSong?.token;
+  $('detailFavoriteButton').textContent = favorite ? 'お気に入り解除' : 'お気に入り';
+}
+
+function setReserveKey(key) {
+  reserveKey = Math.max(-7, Math.min(7, key));
+  renderDetail();
+}
+
+function togglePlayType(type) {
+  const supported = supportedPlayTypes();
+  if (playType === type) {
+    playType = supported.includes('standard') ? 'standard' : type;
+  } else if (supported.includes(type)) {
+    playType = type;
+  }
+  renderDetail();
+}
+
+async function openDetail(song) {
+  const sequence = ++detailSequence;
+  selectedSong = song;
+  selectedDetail = null;
+  detailLoading = true;
+  reserveKey = 0;
+  scoringRequested = false;
+  playType = 'standard';
+  $('detailTitle').textContent = song.title || '曲名不明';
+  $('detailArtist').textContent = song.artist || '—';
+  $('detailArtist').disabled = !song.artist;
+  $('detailId').textContent = song.videoId || '';
+  $('detailStartLyric').textContent = '取得中…';
+  $('detailMessage').textContent = '曲情報を取得しています…';
+  $('detail').hidden = false;
+  renderDetail();
+  try {
+    const data = await api('api/detail', { token: song.token });
+    if (sequence !== detailSequence) return;
+    const detail = data.detail;
+    if (!detail || !Array.isArray(detail.playTypes)) throw new Error('曲情報を取得できません');
+    selectedDetail = detail;
+    if (detail.videoId) {
+      song.videoId = detail.videoId;
+      $('detailId').textContent = detail.videoId;
+    }
+    $('detailStartLyric').textContent = detail.startLyric || '—';
+    if (!detail.playTypes.includes(playType)) playType = detail.playTypes[0] || 'standard';
+    $('detailMessage').textContent = detail.playTypes.length ? '' : '予約できる演奏タイプがありません';
+  } catch (error) {
+    if (sequence !== detailSequence) return;
+    $('detailStartLyric').textContent = '取得できません';
+    $('detailMessage').textContent = error.message;
+  } finally {
+    if (sequence === detailSequence) {
+      detailLoading = false;
+      renderDetail();
+    }
+  }
+}
+
+function closeDetail() {
+  detailSequence++;
+  $('detail').hidden = true;
+}
+
+/** mode: normal / cutIn / originalKey */
+async function reserve(mode) {
+  const song = selectedSong;
+  if (!song?.token || !selectedDetail || !supportedPlayTypes().includes(playType) || busy) return;
+  busy = true;
+  renderDetail();
+  $('detailMessage').textContent = '予約しています…';
+  try {
+    const data = await api('api/reserve', { token: song.token, mode, key: reserveKey, scoring: scoringRequested, playType });
+    const message = data.message || (data.accepted ? '予約しました' : '予約できませんでした');
+    toast(message);
+    if (data.accepted) {
+      closeDetail();
+      if (openDrawerName === 'queue') refreshQueue(true);
+    } else {
+      $('detailMessage').textContent = message;
+    }
+  } catch (error) {
+    $('detailMessage').textContent = error.message;
+    toast(error.message);
+  } finally {
+    busy = false;
+    renderDetail();
+  }
+}
+
+async function toggleFavorite() {
+  const song = selectedSong;
+  if (!song?.token || detailLoading || busy) return;
+  busy = true;
+  renderDetail();
+  try {
+    const data = await api('api/favorite', { token: song.token, favorite: !song.favorite });
+    if (data.accepted) song.favorite = data.favorite;
+    toast(data.message || '更新しました');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    busy = false;
+    renderDetail();
+  }
+}
+
+function buildKeyDots() {
+  const dots = $('keyDots');
+  for (let index = 0; index < 15; index++) {
+    const dot = node('span', undefined, 'keydot');
+    dot.style.setProperty('--h', String(225 + (index / 14) * 105));
+    dot.onclick = () => { if (!detailLoading && selectedDetail) setReserveKey(index - 7); };
+    dots.append(dot);
+  }
+}
+
+// ---- 左右から引き出す一覧 ----
+
+function openDrawer(name) {
+  closeDetail();
+  openDrawerName = name;
+  $('queueDrawer').classList.toggle('open', name === 'queue');
+  $('playerDrawer').classList.toggle('open', name === 'player');
+  $('queueDrawer').setAttribute('aria-hidden', String(name !== 'queue'));
+  $('playerDrawer').setAttribute('aria-hidden', String(name !== 'player'));
+  $('scrim').hidden = false;
+  if (name === 'queue') showDrawerTab(drawerTab);
+  if (name === 'player') refreshState(false);
+}
+
+function closeDrawers() {
+  openDrawerName = '';
+  $('queueDrawer').classList.remove('open');
+  $('playerDrawer').classList.remove('open');
+  $('queueDrawer').setAttribute('aria-hidden', 'true');
+  $('playerDrawer').setAttribute('aria-hidden', 'true');
+  $('scrim').hidden = true;
+}
+
+function showDrawerTab(name) {
+  drawerTab = name;
+  all('.drawertab').forEach((tab) => tab.classList.toggle('active', tab.dataset.drawerTab === name));
+  $('queuePane').hidden = name !== 'queue';
+  $('playedPane').hidden = name !== 'played';
+  if (name === 'queue') refreshQueue();
+  else refreshPlayed();
+}
+
+function queueRow(number, title, artist, className) {
+  const row = node('button', undefined, `qrow${className ? ` ${className}` : ''}`);
+  row.type = 'button';
+  const avatar = node('span', undefined, 'qavatar');
+  avatar.append(icon('user'));
+  const text = node('span', undefined, 'qtext');
+  text.append(node('div', title || '曲名取得中'), node('div', artist || ''));
+  row.append(node('span', number, 'qno'), avatar, text);
+  return row;
+}
+
+function renderQueue() {
+  const list = $('queue');
+  list.replaceChildren();
+  if (state.playing) {
+    const playing = queueRow('演', state.title, state.artist, 'playing');
+    playing.disabled = true;
+    list.append(playing);
+  }
+  if (!queueRows.some((row) => row.token === selectedQueueToken)) selectedQueueToken = '';
+  for (const row of queueRows) {
+    const item = queueRow(row.cutIn ? '割' : String(row.index + 1), row.title, row.artist, row.token === selectedQueueToken ? 'selected' : '');
+    item.append(node('span', '≡', 'qhandle'));
+    item.onclick = () => {
+      selectedQueueToken = selectedQueueToken === row.token ? '' : row.token;
+      renderQueue();
+    };
+    list.append(item);
+  }
+  if (!state.playing && !queueRows.length) list.append(node('div', '予約はありません', 'empty'));
+
+  const selected = queueRows.find((row) => row.token === selectedQueueToken);
+  const normalCount = queueRows.filter((row) => !row.cutIn).length;
+  $('queueUp').disabled = !selected || selected.cutIn || selected.index === 0;
+  $('queueDown').disabled = !selected || selected.cutIn || selected.index >= normalCount - 1;
+  $('queueRemove').disabled = !selected;
+}
+
+async function refreshQueue(silent = false) {
+  try {
+    const data = await api('api/queue');
+    queueRows = Array.isArray(data.rows) ? data.rows : [];
+    renderQueue();
+  } catch (error) {
+    if (!silent) toast(error.message);
+  }
+}
+
+async function queueAction(action) {
+  if (!selectedQueueToken) return;
+  if (action === 'remove' && !confirm('選んだ予約を取り消しますか？')) return;
+  try {
+    const data = await api('api/queue-action', { action, token: selectedQueueToken });
+    queueRows = Array.isArray(data.rows) ? data.rows : [];
+    if (action === 'remove') selectedQueueToken = '';
+    renderQueue();
+    toast(action === 'remove' ? '予約を取り消しました' : '予約順を変更しました');
+  } catch (error) {
+    toast(error.message);
+    refreshQueue(true);
+  }
+}
+
+async function refreshPlayed() {
+  const list = $('played');
+  try {
+    const data = await api('api/history');
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    list.replaceChildren();
+    if (!rows.length) list.append(node('div', 'りれきはありません', 'empty'));
+    rows.forEach((song, index) => {
+      const item = queueRow(String(index + 1), song.title, song.artist, '');
+      item.onclick = () => { closeDrawers(); openDetail(song); };
+      list.append(item);
+    });
+  } catch (error) {
+    list.replaceChildren(node('div', error.message, 'empty'));
+  }
+}
+
+/** 画面の端からのフリックで、左右の一覧を開閉します。 */
+function installEdgeSwipe() {
+  let start = null;
+  const screen = $('screen');
+  screen.addEventListener('touchstart', (event) => {
+    const touch = event.touches[0];
+    start = { x: touch.clientX, y: touch.clientY, width: screen.clientWidth };
+  }, { passive: true });
+  screen.addEventListener('touchend', (event) => {
+    if (!start) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    const from = start;
+    start = null;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+    const rect = screen.getBoundingClientRect();
+    const x = from.x - rect.left;
+    if (openDrawerName === 'queue' && dx < 0) closeDrawers();
+    else if (openDrawerName === 'player' && dx > 0) closeDrawers();
+    else if (!openDrawerName && $('detail').hidden && x < 28 && dx > 0) openDrawer('queue');
+    else if (!openDrawerName && $('detail').hidden && x > from.width - 28 && dx < 0) openDrawer('player');
+  }, { passive: true });
+}
+
+// ---- 結び付け ----
+
+$('search').onsubmit = (event) => { event.preventDefault(); submitSearch(); };
+all('.tab, [data-tab]').forEach((button) => { button.onclick = () => selectTab(button.dataset.tab); });
+all('[data-search-mode]').forEach((button) => {
+  button.onclick = () => {
+    setSearchMode(button.dataset.searchMode);
+    if ($('query').value.trim()) submitSearch();
+    else $('query').focus();
+  };
+});
+all('.segment').forEach((segment) => {
+  segment.onclick = () => {
+    setSearchMode(segment.dataset.mode);
+    if (listQuery) openList('search', listQuery);
+  };
+});
+
+$('openQueue').onclick = () => openDrawer('queue');
+$('tileQueue').onclick = () => openDrawer('queue');
+$('openPlayer').onclick = () => openDrawer('player');
+$('keyRemote').onclick = () => openDrawer('player');
+$('scrim').onclick = closeDrawers;
+all('[data-close-drawer]').forEach((button) => { button.onclick = closeDrawers; });
+all('.drawertab').forEach((tab) => { tab.onclick = () => showDrawerTab(tab.dataset.drawerTab); });
+$('queueUp').onclick = () => queueAction('moveUp');
+$('queueDown').onclick = () => queueAction('moveDown');
+$('queueRemove').onclick = () => queueAction('remove');
+
+all('[data-control]').forEach((button) => { button.onclick = () => runControl(button.dataset.control); });
+$('playerScoring').onclick = toggleScoring;
+$('keyScoring').onclick = toggleScoring;
+$('keyStop').onclick = () => runControl('stop');
+$('keyTop').onclick = goTop;
+$('keyBack').onclick = goBack;
+
+$('detail').onclick = (event) => { if (event.target === $('detail')) closeDetail(); };
+$('detailBack').onclick = closeDetail;
+$('detailArtist').onclick = () => searchArtist(selectedSong?.artist || '');
+$('detailFavorite').onclick = toggleFavorite;
+$('detailFavoriteButton').onclick = toggleFavorite;
+$('optionGuide').onclick = () => togglePlayType('guideVocal');
+$('optionArtist').onclick = () => togglePlayType('artistVideo');
+$('optionScoring').onclick = () => { scoringRequested = !scoringRequested; renderDetail(); };
+$('reserveKeyDown').onclick = () => setReserveKey(reserveKey - 1);
+$('reserveKeyUp').onclick = () => setReserveKey(reserveKey + 1);
+$('reserveKeyReset').onclick = () => setReserveKey(0);
+$('keyTrack').onkeydown = (event) => {
+  if (event.key === 'ArrowLeft') setReserveKey(reserveKey - 1);
+  if (event.key === 'ArrowRight') setReserveKey(reserveKey + 1);
+};
+$('reserveNormal').onclick = () => reserve('normal');
+$('reserveCutIn').onclick = () => reserve('cutIn');
+$('reserveOriginal').onclick = () => reserve('originalKey');
+
+$('damConfirmationYes').onclick = () => answerConfirmation(true);
+$('damConfirmationNo').onclick = () => answerConfirmation(false);
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') goBack(); });
+
+buildKeyDots();
+installEdgeSwipe();
+renderDetail();
+refreshState(false).finally(() => setTimeout(pollState, 1000));
+setInterval(() => {
+  if (openDrawerName === 'queue' && drawerTab === 'queue') refreshQueue(true);
+}, 5000);

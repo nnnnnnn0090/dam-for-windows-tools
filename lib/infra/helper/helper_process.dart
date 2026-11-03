@@ -18,6 +18,10 @@ class HelperCommand {
   /// `runtime/node.exe runtime/helper/main.js` → 開発用 `node helper/main.js`。
   static HelperCommand? resolve(String root, Map<String, String> environment) {
     final override = environment['DAM_TOOLS_HELPER']?.trim() ?? '';
+    // 実行ファイルのパスだけの指定は、空白を含んでいてもそのまま使います。
+    if (override.isNotEmpty && File(override).existsSync()) {
+      return HelperCommand(override, const <String>[], p.dirname(override));
+    }
     if (override.isNotEmpty) {
       final parts = override.split(RegExp(r'\s+'));
       final script = parts.length > 1 ? parts.last : parts.first;

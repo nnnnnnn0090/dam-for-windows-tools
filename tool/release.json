@@ -13,15 +13,7 @@
   },
   "helper": {
     "nodeVersion": "24.19.0",
-    "fridaVersion": "17.17.0",
-    "runtimePackages": [
-      "frida",
-      "bindings",
-      "file-uri-to-path",
-      "minimatch",
-      "brace-expansion",
-      "balanced-match"
-    ]
+    "fridaVersion": "17.17.0"
   },
   "inputs": {
     "node": {
@@ -54,11 +46,6 @@
       "file": "frida-17.17.0.tar.gz",
       "url": "https://github.com/frida/frida/archive/refs/tags/17.17.0.tar.gz",
       "sha256": "599778fcf423f2f288f9baf3b4f98e513a4629c13db6c5a79256f19681a28943"
-    },
-    {
-      "file": "frida-node-17.17.0.tar.gz",
-      "url": "https://github.com/frida/frida-node/archive/refs/tags/17.17.0.tar.gz",
-      "sha256": "b02f7fce40900d83a1816488e409b779fc5856f8bb4b35efae6ee4a7337478e0"
     },
     {
       "file": "frida-core-17.17.0.tar.gz",

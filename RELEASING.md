@@ -26,4 +26,4 @@
 
 ## コード署名（任意）
 
-署名する場合は、`dist/stage` に集めた自作バイナリ（`DAMforWindowsTools.exe`、`updater.exe`、採点描画DLL）だけに署名します。その後で `SHA256SUMS.txt` を作り直してください。第三者のバイナリ（FFmpeg、Node.js、Frida、MSVCランタイム）は再署名しません。
+署名する場合は、`dist/stage` に集めた自作バイナリ（`DAMforWindowsTools.exe`、`updater.exe`、`runtime/dam-link.exe`、採点描画DLL）だけに署名します。その後で `SHA256SUMS.txt` を作り直してください。第三者のバイナリ（FFmpeg、MSVCランタイム）は再署名しません。

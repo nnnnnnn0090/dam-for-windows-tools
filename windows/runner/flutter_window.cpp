@@ -2,6 +2,7 @@
 
 #include <flutter/standard_method_codec.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <shobjidl.h>
 #include <wrl/client.h>
 
@@ -151,6 +152,47 @@ std::optional<std::wstring> PickFile(HWND owner, const std::vector<std::wstring>
   return result;
 }
 
+// MP4の保存先を選びます。キャンセル時は空文字列です。
+std::optional<std::wstring> PickSaveFile(HWND owner, const std::wstring& file_name) {
+  ComPtr<IFileSaveDialog> dialog;
+  if (FAILED(::CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&dialog)))) {
+    return std::nullopt;
+  }
+  const COMDLG_FILTERSPEC filters[] = {{L"MP4 動画", L"*.mp4"}};
+  dialog->SetFileTypes(1, filters);
+  dialog->SetDefaultExtension(L"mp4");
+  dialog->SetTitle(L"公式動画を書き出し");
+  if (!file_name.empty()) {
+    dialog->SetFileName(file_name.c_str());
+  }
+  DWORD options = 0;
+  dialog->GetOptions(&options);
+  dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_OVERWRITEPROMPT | FOS_PATHMUSTEXIST);
+  if (dialog->Show(owner) != S_OK) {
+    return std::wstring();
+  }
+  ComPtr<IShellItem> item;
+  PWSTR path = nullptr;
+  if (FAILED(dialog->GetResult(&item)) || FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+    return std::nullopt;
+  }
+  std::wstring result(path);
+  ::CoTaskMemFree(path);
+  return result;
+}
+
+// ファイルを選択した状態でエクスプローラーを開きます。
+bool RevealFile(const std::wstring& path) {
+  PIDLIST_ABSOLUTE item = ::ILCreateFromPathW(path.c_str());
+  if (item == nullptr) {
+    return false;
+  }
+  HRESULT hr = ::SHOpenFolderAndSelectItems(item, 0, nullptr, 0);
+  ::ILFree(item);
+  return SUCCEEDED(hr);
+}
+
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project) : project_(project) {}
@@ -207,6 +249,23 @@ void FlutterWindow::HandleMethodCall(
       result->Success();
     } else {
       result->Success(EncodableValue(Utf8FromUtf16(path->c_str())));
+    }
+  } else if (method == "pickSaveFile") {
+    auto path = PickSaveFile(GetHandle(),
+                             Utf16FromUtf8(StringArgument(arguments, "fileName").value_or("")));
+    if (!path) {
+      result->Error("dialog", "保存画面を開けません");
+    } else if (path->empty()) {
+      result->Success();
+    } else {
+      result->Success(EncodableValue(Utf8FromUtf16(path->c_str())));
+    }
+  } else if (method == "revealFile") {
+    auto path = StringArgument(arguments, "path");
+    if (!path || !RevealFile(Utf16FromUtf8(*path))) {
+      result->Error("shell", "エクスプローラーを開けません");
+    } else {
+      result->Success();
     }
   } else if (method == "openUrl") {
     auto url = StringArgument(arguments, "url");

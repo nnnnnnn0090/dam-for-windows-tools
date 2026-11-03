@@ -9,7 +9,7 @@ DAMforWindowsTools.exe (Flutter / Dart)
  │   ├─ MediaServer       127.0.0.1:8765  HLS中継・FFmpeg変換
  │   ├─ RemoteServer      0.0.0.0:8766    スマホリモコン
  │   ├─ UpdateService     GitHub Releases → updater.exe
- │   └─ DamLink ── JSON Lines(stdio) ── 接続ヘルパー (runtime/helper, Node.js + Frida) ── DAM
+ │   └─ DamLink ── JSON Lines(stdio) ── 接続ヘルパー (runtime/dam-link.exe, Rust + Frida) ── DAM
  │                                                         └─ dam_scoring_overlay_x_y_z.dll (Rust, DAM内で描画)
  └─ updater.exe (Rust)    検証・置き換え・ロールバック
 ```
@@ -23,8 +23,8 @@ DAMforWindowsTools.exe (Flutter / Dart)
 | `lib/app/` | `AppController` と機能別の状態（`ChangeNotifier`） |
 | `lib/ui/` | 画面。状態を購読し、操作は `AppController` を通します |
 | `assets/remote/` | スマホリモコンの画面（単一HTMLへ組み立てて配信） |
-| `helper/` | DAM接続ヘルパー（v1のNode.jsヘルパーをそのまま使用）。境界は [DAM_LINK_DESIGN.md](DAM_LINK_DESIGN.md) |
-| `native/` | Rust: `scoring-overlay`（DAM内の採点グリッド描画DLL）、`updater` |
+| `helper/` | DAMの中で動くAgent（`agent/*.js`）と対応DAMの定義。Node.js版の接続ヘルパー（開発用）。境界は [DAM_LINK_DESIGN.md](DAM_LINK_DESIGN.md) |
+| `native/` | Rust: `dam-link`（配布版の接続ヘルパー）、`scoring-overlay`（DAM内の採点グリッド描画DLL）、`updater` |
 | `windows/runner/` | Flutterのrunner。単一起動・ジョブ・終了処理・ネイティブ操作のチャネル |
 | `tool/` | 依存物の取得、配布ビルド、配布物検証 |
 

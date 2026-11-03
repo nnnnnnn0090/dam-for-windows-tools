@@ -30,24 +30,32 @@ void main() {
     }
   }
 
-  setUp(() async {
-    events = <LinkEvent>[];
+  Future<DamLink> startLink({
+    Duration searchTimeout = const Duration(seconds: 17),
+  }) async {
     final script = p.join(
       Directory.current.path,
       'test',
       'support',
       'fake_helper.dart',
     );
-    link = DamLink(
+    final started = DamLink(
       commandResolver: () => HelperCommand(dartExecutable(), <String>[
         script,
       ], Directory.current.path),
       environment: Platform.environment,
       onEvent: events.add,
       onPrepare: (_) async => (accepted: false, localUrl: '', error: ''),
+      searchTimeout: searchTimeout,
     );
-    await link.start(const <String, Object>{'replaceVideoUrls': true});
-    await waitFor(() => link.isAttached);
+    await started.start(const <String, Object>{'replaceVideoUrls': true});
+    await waitFor(() => started.isAttached);
+    return started;
+  }
+
+  setUp(() async {
+    events = <LinkEvent>[];
+    link = await startLink();
   });
 
   tearDown(() => link.stop());
@@ -70,6 +78,81 @@ void main() {
           .then((_) => order.add('fast')),
     ]);
     expect(order, <String>['slow', 'fast']);
+  });
+
+  test('タイムアウト後も、結果が届くまで直列化の枠を保持する', () async {
+    final short = await startLink(
+      searchTimeout: const Duration(milliseconds: 700),
+    );
+    try {
+      // 偽ヘルパーは 'late' の結果を1秒後に返し、それまでの検索は busy で断ります。
+      await expectLater(
+        short.search('late', RemoteSearchMode.keyword),
+        throwsA(
+          isA<RemoteFailure>().having(
+            (f) => f.kind,
+            'kind',
+            RemoteFailureKind.timeout,
+          ),
+        ),
+      );
+      final songs = await short.search('next', RemoteSearchMode.keyword);
+      expect(songs.single.title, 'next');
+    } finally {
+      await short.stop();
+    }
+  });
+
+  test('終了は shutdown を送って待ち、以後の要求は未接続で失敗する', () async {
+    final watch = Stopwatch()..start();
+    await link.stop();
+    expect(watch.elapsed, lessThan(const Duration(seconds: 4)));
+    await expectLater(
+      link.search('after', RemoteSearchMode.keyword),
+      throwsA(
+        isA<RemoteFailure>().having(
+          (f) => f.kind,
+          'kind',
+          RemoteFailureKind.notConnected,
+        ),
+      ),
+    );
+  });
+
+  test('ヘルパーの解決順と、空白を含む DAM_TOOLS_HELPER', () {
+    final root = Directory.systemTemp.createTempSync('dam link root ');
+    try {
+      expect(HelperCommand.resolve(root.path, const {}), isNull);
+      final runtime = Directory(p.join(root.path, 'runtime'))..createSync();
+      File(p.join(runtime.path, 'node.exe')).writeAsStringSync('');
+      Directory(p.join(runtime.path, 'helper')).createSync();
+      File(p.join(runtime.path, 'helper', 'main.js')).writeAsStringSync('');
+      expect(
+        HelperCommand.resolve(root.path, const {})!.executable,
+        p.join(runtime.path, 'node.exe'),
+      );
+      final damLink = File(p.join(runtime.path, 'dam-link.exe'))
+        ..writeAsStringSync('');
+      final bundled = HelperCommand.resolve(root.path, const {})!;
+      expect(bundled.executable, damLink.path);
+      expect(bundled.arguments, isEmpty);
+      expect(bundled.workingDirectory, runtime.path);
+
+      final custom = File(p.join(root.path, 'dev build', 'dam-link.exe'))
+        ..createSync(recursive: true);
+      final overridden = HelperCommand.resolve(root.path, {
+        'DAM_TOOLS_HELPER': custom.path,
+      })!;
+      expect(overridden.executable, custom.path);
+      expect(overridden.arguments, isEmpty);
+      final node = HelperCommand.resolve(root.path, const {
+        'DAM_TOOLS_HELPER': r'node C:\helper\main.js',
+      })!;
+      expect(node.executable, 'node');
+      expect(node.arguments, <String>[r'C:\helper\main.js']);
+    } finally {
+      root.deleteSync(recursive: true);
+    }
   });
 
   test('ヘルパーのエラー文字列を種別へ分類する', () async {

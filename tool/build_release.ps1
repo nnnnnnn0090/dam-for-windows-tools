@@ -109,34 +109,20 @@ foreach ($name in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
   Copy-Into $file $name
 }
 
-# runtime: FFmpeg・Node.js・接続ヘルパー
+# runtime: FFmpeg・接続ヘルパー（Rust製 dam-link.exe と Agent。Node.js は同梱しません）
 Copy-Into (Join-Path $cache 'ffmpeg\ffmpeg.exe') 'runtime\ffmpeg.exe'
-Copy-Into $node 'runtime\node.exe'
-foreach ($file in Get-ChildItem helper -File | Where-Object { $_.Extension -in '.js', '.json' -and $_.Name -ne 'package-lock.json' -and $_.Name -ne 'check_agent_syntax.js' }) {
-  Copy-Into $file.FullName "runtime\helper\$($file.Name)"
+Copy-Into (Join-Path $nativeOut 'dam-link.exe') 'runtime\dam-link.exe'
+Copy-Into (Join-Path $repo 'helper\supported-dam.json') 'runtime\agent\supported-dam.json'
+# dam-link は runtime\agent\*.js をファイル名順に結合します。identity.js を先頭にします。
+Copy-Into (Join-Path $repo 'helper\identity.js') 'runtime\agent\00_identity.js'
+foreach ($file in Get-ChildItem (Join-Path $repo 'helper\agent') -Filter *.js -File) {
+  Copy-Into $file.FullName "runtime\agent\$($file.Name)"
 }
-Copy-Into (Join-Path $repo 'helper\agent') 'runtime\helper\agent'
-foreach ($package in $config.helper.runtimePackages) {
-  $source = Join-Path $repo "helper\node_modules\$package"
-  if ($package -eq 'frida') {
-    # 197MBのうち実行に必要なのはバインディングとJSだけです。
-    foreach ($relative in 'package.json', 'COPYING', 'build\frida_binding.node', 'build\src\frida.js') {
-      if (Test-Path (Join-Path $source $relative)) { Copy-Into (Join-Path $source $relative) "runtime\helper\node_modules\frida\$relative" }
-    }
-  } else {
-    Copy-Into $source "runtime\helper\node_modules\$package"
-  }
-}
-Push-Location (Join-Path $stage 'runtime\helper')
-try {
-  Invoke-Native '同梱fridaの読み込み確認' { & (Join-Path $stage 'runtime\node.exe') --input-type=module -e "await import('frida'); console.log('frida ok')" }
-} finally { Pop-Location }
 
 # 文書・ライセンス
 foreach ($name in 'README.md', 'LICENSE', 'LEGAL_NOTICE.md', 'THIRD_PARTY_NOTICES.md') { Copy-Into $name $name }
 foreach ($file in Get-ChildItem legal -File) { Copy-Into $file.FullName "LICENSES\$($file.Name)" }
 Copy-Into (Join-Path $cache 'ffmpeg\ffmpeg-README.txt') 'LICENSES\FFmpeg-build-README.txt'
-Copy-Into (Join-Path $cache 'node\LICENSE') 'LICENSES\Node.js-LICENSE.txt'
 
 # ---- 6. ビルド情報・検証 ----
 [ordered]@{
@@ -146,7 +132,6 @@ Copy-Into (Join-Path $cache 'node\LICENSE') 'LICENSES\Node.js-LICENSE.txt'
   builtAtUtc     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
   flutter        = $flutterVersion
   rust           = $rustVersion
-  node           = $config.helper.nodeVersion
   frida          = $config.helper.fridaVersion
   ffmpeg         = $config.inputs.ffmpeg.version
   damTarget      = $config.damTarget

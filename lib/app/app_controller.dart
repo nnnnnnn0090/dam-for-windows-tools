@@ -12,6 +12,7 @@ import '../infra/helper/dam_link.dart';
 import '../infra/helper/helper_process.dart';
 import '../infra/json_store.dart';
 import '../infra/media/media_server.dart';
+import '../infra/media/original_exporter.dart';
 import '../infra/native_bridge.dart';
 import '../infra/paths.dart';
 import '../infra/remote/remote_server.dart';
@@ -45,6 +46,19 @@ class AppController {
     const <String>{},
   );
 
+  /// 公式動画の書き出しを表示するかです。権利上の理由で通常は隠し、
+  /// 「0」キーを10回続けて押したときだけ、その起動中に限り表示します。
+  final ValueNotifier<bool> exportUnlocked = ValueNotifier<bool>(false);
+
+  /// 公式動画を書き出せる動画IDです（今回の起動中にDAMが再生した曲）。
+  final ValueNotifier<Set<String>> exportableVideos =
+      ValueNotifier<Set<String>>(const <String>{});
+
+  /// 公式動画を書き出し中の動画IDです。
+  final ValueNotifier<Set<String>> exportingVideos = ValueNotifier<Set<String>>(
+    const <String>{},
+  );
+
   /// リモコンのURLです。サーバー未起動・LAN未接続なら `null` です。
   final ValueNotifier<String?> remoteUrl = ValueNotifier<String?>(null);
 
@@ -60,6 +74,14 @@ class AppController {
     paths: paths,
     bridge: bridge,
   );
+  late final OriginalExporter _exporter = OriginalExporter(
+    ffmpeg: paths.ffmpegExecutable,
+  );
+
+  /// 書き出しに使う、曲ごとの最新の公式動画URLです（古いものから捨てます）。
+  final Map<String, PlaybackDescriptor> _upstreams =
+      <String, PlaybackDescriptor>{};
+  static const int _maximumUpstreams = 300;
   MediaServer? _media;
   DamLink? _link;
   RemoteServer? _remote;
@@ -212,6 +234,63 @@ class AppController {
     }
   }
 
+  /// 公式動画をMP4で書き出します。保存先は利用者が選び、キャンセルなら `null` です。
+  ///
+  /// 公式動画のURLは再生のたびにDAMから届くため、今回の起動中に再生した曲だけが対象です。
+  Future<String?> exportOriginalVideo(TrackRecord record) async {
+    await _ready.future;
+    if (!exportUnlocked.value) return null;
+    final videoId = record.videoId;
+    final descriptor = _upstreams[videoId];
+    if (descriptor == null) {
+      throw const ExportException(
+        'この曲は今回の起動中にまだ再生されていません。DAMで一度再生してから書き出してください',
+      );
+    }
+    if (exportingVideos.value.contains(videoId)) return null;
+    final path = await bridge.pickSaveFile(exportFileName(record));
+    if (path == null) return null;
+    exportingVideos.value = <String>{...exportingVideos.value, videoId};
+    log.add('[$videoId] 公式動画を書き出しています: $path');
+    try {
+      await _exporter.export(descriptor.upstreamUrls, File(path));
+      log.add('[$videoId] 公式動画を書き出しました: $path');
+      return path;
+    } on Object catch (error) {
+      log.add('[$videoId] 公式動画を書き出せません: $error');
+      rethrow;
+    } finally {
+      exportingVideos.value = <String>{...exportingVideos.value}
+        ..remove(videoId);
+    }
+  }
+
+  void unlockExport() {
+    if (exportUnlocked.value) return;
+    exportUnlocked.value = true;
+    log.add('公式動画の書き出しを表示しました（この起動中のみ）');
+  }
+
+  /// 書き出したファイルをエクスプローラーで表示します。
+  Future<void> revealFile(String path) async {
+    try {
+      await bridge.revealFile(path);
+    } on PlatformException catch (error) {
+      log.add('エクスプローラーを開けません: ${error.message}');
+    }
+  }
+
+  void _rememberUpstream(PlaybackDescriptor descriptor) {
+    final videoId = descriptor.videoId;
+    if (videoId.isEmpty || descriptor.upstreamUrls.isEmpty) return;
+    _upstreams.remove(videoId);
+    _upstreams[videoId] = descriptor;
+    while (_upstreams.length > _maximumUpstreams) {
+      _upstreams.remove(_upstreams.keys.first);
+    }
+    exportableVideos.value = _upstreams.keys.toSet();
+  }
+
   void resetScoring() => scoring.reset();
 
   Future<void> reconnect() async => _link?.reconnect();
@@ -280,6 +359,7 @@ class AppController {
 
     await step('リモコン', () => _remote?.stop());
     await step('DAM接続', () => _link?.stop()); // DAMへの変更を復元します。
+    await step('公式動画の書き出し', _exporter.close);
     await step('ローカル配信', () => _media?.stop());
     await step('再生履歴の保存', () => _historySave);
     await step('一時データ', paths.disposeSession);
@@ -318,6 +398,7 @@ class AppController {
         }
         history.registerPlayback(videoId);
         _saveHistory();
+        _rememberUpstream(PlaybackDescriptor.fromJson(payload));
         log.add('[$videoId] 再生を検知しました');
       case 'rewritten':
         final videoId = normalizeVideoAssetId(payload['videoId']);

@@ -67,12 +67,16 @@
     },
     "currentPlaybackMetadata": {
       "currentVideoIdRva": "0x26ee548",
-      "artistRva": "0x26ee348",
-      "titleRva": "0x26ee148",
+      "artistRva": "0x26ee148",
+      "titleRva": "0x26ee348",
       "encoding": "utf-16le",
       "capacityChars": 256,
       "evidenceFunctionRva": "0x0d3950",
-      "meaning": "current song title/artist UTF-16 buffers and public legacy-ID buffer consumed by MessageArea CaptionPanel"
+      "artistLayoutRva": "0x0eb84f",
+      "artistLayoutExpectedPrefix": "4c8d0d72846f02488d05db546e02440fb6059b416e024584c04c0f44c8",
+      "titleLayoutRva": "0x0eb8ae",
+      "titleLayoutExpectedPrefix": "4c8d0d13866f02488d057c566e024584c04c0f44c8",
+      "meaning": "current request record copied from the queue by FUN_1400e8b40; FUN_1400eb710 stores song-detail artist (+0x10) at record +0x28 and title (+0x210) at record +0x228, and record +0x428 holds the public video ID"
     },
     "scoringStart": {
       "rva": "0x1a71f0",
@@ -280,8 +284,8 @@
       "sourceArtistOffset": "0x10",
       "sourceStartLyricOffset": "0x410",
       "sourceStartLyricCapacityChars": "0x20",
-      "preparedTitleOffset": "0x28",
-      "preparedArtistOffset": "0x228",
+      "preparedTitleOffset": "0x228",
+      "preparedArtistOffset": "0x28",
       "sourceTailOffset": "0x452",
       "sourceVideoIdOffset": "0x452",
       "preparedTailOffset": "0x428",
@@ -364,8 +368,8 @@
       "cutInBaseRva": "0x27bcd10",
       "recordStride": "0x12cb8",
       "queueIdOffset": "0x470",
-      "titleOffset": "0x28",
-      "artistOffset": "0x228",
+      "titleOffset": "0x228",
+      "artistOffset": "0x28",
       "textCapacityChars": 256,
       "maximumNormalEntries": 10,
       "meaning": "bounded RequestWindow queue records and checked delete/reorder functions"

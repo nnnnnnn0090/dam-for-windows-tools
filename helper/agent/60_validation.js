@@ -16,6 +16,16 @@ function validateHooks() {
     'scoringDisplayStop',
     DAM_TARGET_MANIFEST.hooks.scoringDisplayStop,
   );
+  const metadata = DAM_TARGET_MANIFEST.hooks.currentPlaybackMetadata;
+  // 予約レコードの曲名・アーティスト位置は、DAM本体の予約構造作成処理の命令列で確認します。
+  verifyPrefix('currentPlaybackMetadata.artistLayout', {
+    rva: metadata.artistLayoutRva,
+    expectedPrefix: metadata.artistLayoutExpectedPrefix,
+  });
+  verifyPrefix('currentPlaybackMetadata.titleLayout', {
+    rva: metadata.titleLayoutRva,
+    expectedPrefix: metadata.titleLayoutExpectedPrefix,
+  });
   verifyPrefix('scoringStop', DAM_TARGET_MANIFEST.hooks.scoringStop);
   verifyPrefix(
     'realtimeVocalOrnament',

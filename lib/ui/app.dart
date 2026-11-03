@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/app_controller.dart';
+import '../app/states.dart';
 import '../app_config.dart';
 import 'header.dart';
 import 'scoring_page.dart';
@@ -23,12 +24,32 @@ class DamToolsApp extends StatefulWidget {
 
 class _DamToolsAppState extends State<DamToolsApp> {
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
+  final KeySequence _exportKeys = KeySequence(count: 10);
 
   AppController get controller => widget.controller;
+
+  /// 「0」キー10連打で書き出しを表示します。入力欄への入力は妨げません。
+  bool _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    final key = event.logicalKey;
+    final zero =
+        key == LogicalKeyboardKey.digit0 || key == LogicalKeyboardKey.numpad0;
+    if (_exportKeys.press(matches: zero, at: DateTime.now())) {
+      controller.unlockExport();
+    }
+    return false;
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
     // ×ボタン・ログオフ時はrunnerから通知され、停止完了後にウィンドウを閉じます。
     controller.bridge.listen(onClose: controller.shutdown);
     unawaited(_start());
@@ -206,7 +227,6 @@ void registerLicenses() {
       'legal/WxWindows-exception-3.1.txt',
     ],
   );
-  add(const <String>['Node.js'], const <String>['legal/Node.js.txt']);
   add(
     const <String>['QRCode for JavaScript algorithm'],
     const <String>['legal/QR-Code-generator-MIT.txt'],

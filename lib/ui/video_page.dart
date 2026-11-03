@@ -202,6 +202,9 @@ class HistoryPanel extends StatelessWidget {
       listenable: Listenable.merge(<Listenable>[
         controller.history,
         controller.manualVideos,
+        controller.exportUnlocked,
+        controller.exportableVideos,
+        controller.exportingVideos,
       ]),
       builder: (context, _) {
         final records = controller.history.records;
@@ -249,11 +252,11 @@ class HistoryPanel extends StatelessWidget {
         color: AppColors.tableHeader,
         child: const Row(
           children: <Widget>[
-            Expanded(flex: 17, child: _ColumnLabel('動画ID')),
-            Expanded(flex: 24, child: _ColumnLabel('アーティスト')),
-            Expanded(flex: 29, child: _ColumnLabel('曲名')),
-            Expanded(flex: 13, child: _ColumnLabel('状態')),
-            Expanded(flex: 17, child: _ColumnLabel('差し替え動画')),
+            Expanded(flex: 15, child: _ColumnLabel('動画ID')),
+            Expanded(flex: 21, child: _ColumnLabel('アーティスト')),
+            Expanded(flex: 25, child: _ColumnLabel('曲名')),
+            Expanded(flex: 12, child: _ColumnLabel('状態')),
+            Expanded(flex: 27, child: _ColumnLabel('差し替え動画')),
           ],
         ),
       ),
@@ -271,21 +274,18 @@ class HistoryPanel extends StatelessWidget {
               child: Row(
                 children: <Widget>[
                   Expanded(
-                    flex: 17,
+                    flex: 15,
                     child: _Cell(record.videoId, monospace: true),
                   ),
-                  Expanded(flex: 24, child: _Cell(record.artist)),
-                  Expanded(flex: 29, child: _Cell(record.title)),
+                  Expanded(flex: 21, child: _Cell(record.artist)),
+                  Expanded(flex: 25, child: _Cell(record.title)),
                   Expanded(
-                    flex: 13,
+                    flex: 12,
                     child: _StageText(
                       controller.history.stageOf(record.videoId),
                     ),
                   ),
-                  Expanded(
-                    flex: 17,
-                    child: _videoButtons(context, record.videoId),
-                  ),
+                  Expanded(flex: 27, child: _videoButtons(context, record)),
                 ],
               ),
             );
@@ -322,15 +322,18 @@ class HistoryPanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 _StageText(controller.history.stageOf(record.videoId)),
                 const SizedBox(width: 8),
-                _videoButtons(context, record.videoId),
+                _videoButtons(context, record),
               ],
             ),
           );
         },
       );
 
-  Widget _videoButtons(BuildContext context, String videoId) {
+  Widget _videoButtons(BuildContext context, TrackRecord record) {
+    final videoId = record.videoId;
     final manual = controller.manualVideos.value.contains(videoId);
+    final exportable = controller.exportableVideos.value.contains(videoId);
+    final exporting = controller.exportingVideos.value.contains(videoId);
     final style = TextButton.styleFrom(
       minimumSize: const Size(0, 30),
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -349,8 +352,40 @@ class HistoryPanel extends StatelessWidget {
             onPressed: () => unawaited(controller.clearManualVideo(videoId)),
             child: const Text('解除'),
           ),
+        if (controller.exportUnlocked.value)
+          Tooltip(
+            message: exportable
+                ? 'DAMの公式動画をMP4で保存します（差し替え動画のタイミング合わせ用）'
+                : 'DAMで再生すると書き出せます（今回の起動中に再生した曲のみ）',
+            child: TextButton(
+              style: style,
+              onPressed: exportable && !exporting
+                  ? () => unawaited(_export(context, record))
+                  : null,
+              child: Text(exporting ? '書き出し中' : '書き出し...'),
+            ),
+          ),
       ],
     );
+  }
+
+  Future<void> _export(BuildContext context, TrackRecord record) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final path = await controller.exportOriginalVideo(record);
+      if (path == null) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('書き出しました: $path'),
+          action: SnackBarAction(
+            label: 'フォルダを開く',
+            onPressed: () => unawaited(controller.revealFile(path)),
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 
   Future<void> _choose(BuildContext context, String videoId) async {

@@ -3,8 +3,9 @@
 Flutterアプリと、DAMへ接続する「接続ヘルパー」の境界を定義します。
 v2のFlutterアプリはこの仕様だけに依存し、ヘルパーの中身は差し替え可能です。
 
-- **現行の実装**: v1の Node.js ヘルパー（`sidecar/`）をそのまま使用します。
-- **将来の置き換え候補**: Rust製 `dam-link.exe`（未実装。本書の「Rust版の実装方針」を参照）。
+- **配布版の実装**: Rust製 `dam-link.exe`（`native/dam-link/`。6章）。配布物に Node.js は含みません。
+- **開発用の実装**: v1の Node.js ヘルパー（`helper/`）。`flutter run` で、`runtime\dam-link.exe` が無いときに使います。
+- DAMの中で動く Agent（`helper/agent/*.js`・`helper/identity.js`・`helper/supported-dam.json`）は、両方で共通です。
 
 ## 1. 構成
 
@@ -132,20 +133,30 @@ Flutterアプリ ──(stdin/stdout: JSON Lines, UTF-8)── 接続ヘルパ�
   - ヘルパーの `error` 文字列は、アプリ内で `RemoteFailure`（`notConnected`, `busy`, `expired`, `timeout`, `rejected`, `internal`）へ分類します。
   - 分類規則は `lib/infra/helper/dam_link.dart` の `RemoteFailure.fromHelper` の1か所にまとめます。
 
-## 6. Rust版 `dam-link.exe` の実装方針（未着手）
+## 6. Rust版 `dam-link.exe`
 
-Node.js（約90MB）をなくすための置き換えです。プロトコルは3章と完全に同じにし、アプリ側は変更しません。
+Node.js をなくすための置き換えです。配布物の接続ヘルパーは、`node.exe`（約93MB）と frida のバインディング（約118MB）から、`dam-link.exe` 1つ（約68MB）になります。プロトコルは3章と完全に同じで、アプリ側は変更していません。ソースは `native/dam-link/` です。
 
-- **固定する依存物**: frida-core devkit 17.17.0。`tool/release.json` の `fridaCoreDevkit` に、SHA-256込みで固定済みです。`tool/bootstrap.ps1` が取得し、検証します。
+- **固定する依存物**: frida-core devkit 17.17.0。`tool/release.json` の `fridaCoreDevkit` に、SHA-256込みで固定しています。`tool/bootstrap.ps1` が取得・検証し、`tool/cache/frida-core-devkit` へ展開します（`FRIDA_CORE_DEVKIT` 環境変数で置き場所を変えられます）。
 - **ビルド**
   - devkit は静的CRT（/MT）でビルドされています。ワークスペースの `native/.cargo/config.toml` で `+crt-static` に揃えてあります。
-  - libclang が必要な `frida` クレート（bindgen）は使いません。必要な関数だけを手書きのFFIで宣言します。
-- **v1から引き継いで改善する点**
-  - DAMプロセスの探索と実行ファイルのSHA-256計算は、Win32 API で行います。SHA-256はパス・サイズ・更新日時をキーにキャッシュします（v1は毎回Fridaで全プロセスを列挙していました）。
-  - Agent RPC の応答待ちは、メッセージを受け取るコールバックの中で直接解決します。これにより、受信処理と応答待ちがお互いを待ち合うデッドロックを避けます。
-  - DAMから切断されたら、待機中のRPCをすぐ失敗にします。
-  - Agent の結合順は、ファイル名順（`agent/*.js`）とします。
-- **配置**: `runtime\dam-link.exe`、`runtime\agent\*.js`、`runtime\agent\supported-dam.json`。
+  - libclang が必要な `frida` クレート（bindgen）は使いません。必要な関数だけを `src/frida.rs` に手書きのFFIで宣言し、`build.rs` が `frida-core.lib` と必要なシステムライブラリをリンクします。
+- **スレッド構成**（`src/lib.rs`）
+  - メイン: stdinを読みます。`prepareResult` はその場でAgentへ返します（DAMの再生スレッドが待っているため、他の処理の後ろに並べません）。
+  - control: `config`・`reconnect`・`shutdown` を届いた順に処理します。
+  - monitor: 750msごとに探索し、未接続なら接続します。接続・切断の手順は1つのロックで1件ずつにします。
+  - `remote*` は要求ごとのスレッドでAgentのRPCを呼びます。直列化はアプリ側の責任です（5章）。
+- **v1から引き継いで改善した点**
+  - DAMプロセスの探索（Toolhelp32）と実行ファイルのSHA-256計算は、Win32 API で行います。SHA-256はパス・サイズ・更新日時をキーにキャッシュします（v1は毎回Fridaで全プロセスを列挙し、毎回ファイル全体を読んでいました）。
+  - Agent RPC の応答待ちは、メッセージを受け取るコールバックの中で直接解決します。コールバックの中では待ち合わせをしないため、受信処理と応答待ちがお互いを待ち合うデッドロックは起きません。
+  - DAMから切断されたら、待機中のRPCをすぐ `DAMに接続されていません` で失敗にします。RPCには上限時間（受付30秒、状態取得・操作10秒、初期化30秒、復元4秒）があり、応答のないAgentでスレッドが残り続けません。
+  - 接続処理中に届いた `config` も、初期化の直後に反映します。
+  - `prepare` の期限（1.9秒）は、応答の有無にかかわらず1回だけAgentへ返します。
+- **Agentの結合**: マニフェスト（`DAM_TARGET_MANIFEST`）と実行設定（`DAM_RUNTIME_CONFIG`）の定義に続けて、`agent\*.js` をファイル名順に結合します。宣言の `export` 修飾子だけを取り除きます。
+- **配置**
+  - 配布版: `runtime\dam-link.exe`、`runtime\agent\*.js`（`helper\identity.js` は `00_identity.js` として先頭に置きます）、`runtime\agent\supported-dam.json`。`tool/verify_release.ps1` が `helper/` と一致することを確認します。
+  - 開発時: `runtime\agent` が無ければ、`DAM_TOOLS_APP_ROOT`、なければEXEの上位フォルダから `helper\` を探して使います。`DAM_TOOLS_HELPER=<repo>\native\target\release\dam-link.exe` で、`flutter run` からも試せます。
+- **起動できない構成**: `supported-dam.json` が無い・不正、`DAM_TOOLS_MEDIA_ORIGIN` がループバックのHTTPでない、Fridaを初期化できない場合は、理由をstderrへ書いて終了コード2で終わります（アプリは4章の間隔で再起動を試みます）。
 
 ## 7. 試験
 
@@ -156,4 +167,9 @@ Node.js（約90MB）をなくすための置き換えです。プロトコルは
   - 結果イベントの順序
   - タイムアウト後も直列化の枠を保持すること
   - エラーの分類
+- `dam-link.exe` は `cargo test` で試験します（`native/dam-link/tests/protocol.rs`）。DAMの代わりに、試験EXEを一意な名前で複製して起動したものへ、本物のFridaで試験用Agentを注入します。
+  - 未接続時の `error` 付き結果、不正な行・上限を超える行・不明なコマンドの拒否
+  - 起動の検知と接続、保持していた `config` での初期化、接続中の設定変更
+  - RPCの結果・例外、Agentのイベント転送、`prepare` の応答と1.9秒の期限
+  - 対象の終了による `waiting`、再起動での自動再接続、`reconnect`、`shutdown`・stdinのEOFでの復元と終了
 - DAMとの結合確認は、実機で行います（README の確認手順を参照）。

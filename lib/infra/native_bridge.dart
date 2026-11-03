@@ -32,6 +32,16 @@ class NativeBridge {
         'extensions': extensions,
       });
 
+  /// MP4の保存先を選びます。キャンセルなら `null` です。
+  Future<String?> pickSaveFile(String fileName) =>
+      _channel.invokeMethod<String>('pickSaveFile', <String, Object>{
+        'fileName': fileName,
+      });
+
+  /// ファイルをエクスプローラーで選択した状態で表示します。
+  Future<void> revealFile(String path) =>
+      _channel.invokeMethod<void>('revealFile', <String, Object>{'path': path});
+
   /// 既定のブラウザでURLを開きます。
   Future<void> openUrl(String url) =>
       _channel.invokeMethod<void>('openUrl', <String, Object>{'url': url});

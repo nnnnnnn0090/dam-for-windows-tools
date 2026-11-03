@@ -5,7 +5,17 @@ import 'dart:io';
 
 void emit(Map<String, Object?> event) => stdout.writeln(jsonEncode(event));
 
+Map<String, Object?> searchResult(Object? id, Object? query) => {
+  'type': 'remote-search-result',
+  'requestId': id,
+  'rows': [
+    {'token': 't_$query', 'videoId': '1-1', 'artist': 'A', 'title': '$query'},
+  ],
+};
+
 Future<void> main() async {
+  // DAMの中で検索を処理している間です。実機と同じく、次の要求は busy で断ります。
+  var searching = false;
   await for (final line
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     final command = jsonDecode(line) as Map<String, Object?>;
@@ -18,7 +28,7 @@ Future<void> main() async {
         final query = command['query'];
         if (query == 'crash') exit(3);
         if (query == 'huge') stdout.writeln('x' * (5 * 1024 * 1024));
-        if (query == 'busy') {
+        if (query == 'busy' || searching) {
           emit({
             'type': 'remote-search-result',
             'requestId': id,
@@ -26,21 +36,19 @@ Future<void> main() async {
           });
           break;
         }
+        if (query == 'late') {
+          // 呼び出し元のタイムアウトより後に結果を返します。
+          searching = true;
+          Timer(const Duration(milliseconds: 1000), () {
+            searching = false;
+            emit(searchResult(id, query));
+          });
+          break;
+        }
         if (query == 'slow') {
           await Future<void>.delayed(const Duration(milliseconds: 400));
         }
-        emit({
-          'type': 'remote-search-result',
-          'requestId': id,
-          'rows': [
-            {
-              'token': 't_$query',
-              'videoId': '1-1',
-              'artist': 'A',
-              'title': '$query',
-            },
-          ],
-        });
+        emit(searchResult(id, query));
       case 'remoteState':
         emit({
           'type': 'remote-state-result',

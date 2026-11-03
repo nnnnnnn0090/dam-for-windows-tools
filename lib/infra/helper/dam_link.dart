@@ -110,6 +110,7 @@ class DamLink implements RemoteBackend {
     required this.environment,
     required this.onEvent,
     required this.onPrepare,
+    this.searchTimeout = const Duration(seconds: 17),
   });
 
   final HelperCommand? Function() commandResolver;
@@ -117,7 +118,9 @@ class DamLink implements RemoteBackend {
   final void Function(LinkEvent event) onEvent;
   final PrepareHandler onPrepare;
 
-  static const Duration _searchTimeout = Duration(seconds: 17);
+  /// `remoteSearch` の呼び出し元へのタイムアウトです（試験で短くできます）。
+  final Duration searchTimeout;
+
   static const Duration _operationTimeout = Duration(seconds: 22);
   static const Duration _commandTimeout = Duration(seconds: 6);
   static const Duration _slotHoldLimit = Duration(seconds: 60);
@@ -193,7 +196,7 @@ class DamLink implements RemoteBackend {
         'query': mode.needsQuery ? cleaned : '',
         'mode': mode.wireName,
       },
-      _searchTimeout,
+      searchTimeout,
       (event) {
         final limit = mode == RemoteSearchMode.favorites ? 100 : 50;
         final rows = event['rows'];

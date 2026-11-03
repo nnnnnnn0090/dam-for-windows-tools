@@ -33,6 +33,9 @@
 - 採点グリッドの描画DLLをRust（Direct2D）で作り直し
 - 診断ログの更新で画面全体を再描画しないよう変更
 - DAM接続ヘルパーとの境界を [docs/DAM_LINK_DESIGN.md](docs/DAM_LINK_DESIGN.md) に定義
+- DAM接続ヘルパーをRust製の `dam-link.exe` に置き換え、配布物からNode.jsを削除（接続ヘルパーは約211MBから約68MBに）
+- DAMの探索とSHA-256の照合を、Fridaによる全プロセス列挙からWin32 APIとキャッシュに変更
+- Webリモコンの画面を、DAM本体と同じ画面構成で作り直し
 
 ## 1.1.4 - 2026-08-23
 
