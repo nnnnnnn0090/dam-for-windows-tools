@@ -64,6 +64,7 @@ class RemoteServer {
   String? _preferredAddress;
   final Set<_Trace> _inFlight = <_Trace>{};
   DateTime? _lastBusyLog;
+  final Map<String, DateTime> _lastFailureLogs = <String, DateTime>{};
   HttpServer? _server;
   Timer? _addressTimer;
 
@@ -217,7 +218,11 @@ class RemoteServer {
         return;
       }
       final (status, message) = _describe(error);
-      if (status >= 500 && error is! RemoteFailure) onLog('リモコンAPI失敗: $error');
+      if (error is RemoteFailure) {
+        _logFailure(trace, error);
+      } else if (status >= 500) {
+        onLog('リモコンAPI失敗: $error');
+      }
       trace.stage = 'エラー応答の送信';
       await _send(
         response,
@@ -237,6 +242,25 @@ class RemoteServer {
     'リモコンの要求が${requestDeadline.inSeconds}秒以内に終わらなかったため、接続を切りました'
     '（${trace.describe()}）',
   );
+
+  /// DAMでの操作の失敗を、理由とともに記録します。状態の定期取得などで同じ失敗が
+  /// 続いても埋もれないよう、同じ操作・同じ理由の記録は30秒に1回までにします。
+  void _logFailure(_Trace trace, RemoteFailure failure) {
+    final key = '${trace.target}:${failure.message}';
+    final now = DateTime.now();
+    final last = _lastFailureLogs[key];
+    if (last != null && now.difference(last) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastFailureLogs[key] = now;
+    if (_lastFailureLogs.length > 100) {
+      _lastFailureLogs.remove(_lastFailureLogs.keys.first);
+    }
+    onLog(
+      'リモコン操作失敗 (${trace.target}・${failure.kind.name}・'
+      '${now.difference(trace.started).inMilliseconds}ms): ${failure.message}',
+    );
+  }
 
   /// 同時処理数が上限に達したことを、処理中の要求の内訳とともに記録します（30秒に1回まで）。
   void _logBusy() {

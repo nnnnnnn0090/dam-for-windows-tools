@@ -157,6 +157,7 @@ rpc.exports = {
       videoId: row.videoId,
       source: listRow ? 'list' : 'search',
       row,
+      started: Date.now(),
     };
     setTimeout(() => {
       if (pendingRemoteDetail && pendingRemoteDetail.requestId === id) {

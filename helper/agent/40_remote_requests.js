@@ -43,6 +43,14 @@ function finishRemoteDetail(requestInfo, errorMessage = '') {
   const pending = pendingRemoteDetail;
   if (!pending) return;
   pendingRemoteDetail = null;
+  // 失敗の経路を後から追えるよう、どの一覧から・どの曲で・何秒かかったかを残します。
+  const elapsed = Date.now() - (pending.started || Date.now());
+  const where = pending.row && pending.row.history ? '履歴'
+    : pending.row && pending.row.favorite ? 'お気に入り'
+      : pending.source === 'list' ? '一覧' : '検索';
+  emitLog(`リモコン曲詳細 ${where} ${pending.videoId || '(IDなし)'}` +
+    `${pending.source === 'list' ? ` #${pending.row.listIndex}` : ''}: ` +
+    `${errorMessage || (requestInfo && !requestInfo.isNull() ? '取得' : '空の応答')} ${elapsed}ms`);
   if (errorMessage) {
     send({
       type: 'remote-detail-result',

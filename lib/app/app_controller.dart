@@ -101,6 +101,7 @@ class AppController {
   Future<void> initialize() async {
     try {
       await paths.prepare();
+      await log.attachFile(File(paths.diagnosticsLogPath));
       settings.value = await _loadOr(
         _settingsStore.load(),
         const AppSettings(),
@@ -417,6 +418,7 @@ class AppController {
     await step('ローカル配信', () => _media?.stop());
     await step('再生履歴の保存', () => _historySave);
     await step('一時データ', paths.disposeSession);
+    await log.closeFile();
     _updates.close();
   }
 

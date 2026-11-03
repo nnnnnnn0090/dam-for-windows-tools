@@ -24,12 +24,23 @@ class FakeBackend implements RemoteBackend {
   }
 
   @override
-  Future<RemoteSongDetail> detail(String token) async => const RemoteSongDetail(
-    videoId: '1-1',
-    startLyric: 'la',
-    originalKey: 0,
-    playTypes: <RemotePlayType>[RemotePlayType.standard],
-  );
+  Future<RemoteSongDetail> detail(String token) async {
+    if (token == 'failing') {
+      throw const RemoteFailure(RemoteFailureKind.rejected, 'DAMの曲詳細取得に失敗しました');
+    }
+    if (token == 'expired') {
+      throw const RemoteFailure(
+        RemoteFailureKind.expired,
+        'invalid or expired search result',
+      );
+    }
+    return const RemoteSongDetail(
+      videoId: '1-1',
+      startLyric: 'la',
+      originalKey: 0,
+      playTypes: <RemotePlayType>[RemotePlayType.standard],
+    );
+  }
 
   @override
   Future<RemoteReservationResult> reserve(
@@ -175,6 +186,42 @@ void main() {
     expect((await api('state', '{}', contentType: 'text/plain')).$1, 415);
     expect((await api('search', {'query': 'x' * 5000})).$1, 413);
     expect((await api('state', {}, host: 'evil.example')).$1, 421);
+  });
+
+  test('DAMでの操作の失敗は、理由を診断ログに記録する', () async {
+    final logs = <String>[];
+    final logged = RemoteServer(
+      port: 18770,
+      backend: FakeBackend(),
+      loadPage: () async => '<html>remote</html>',
+      onLog: logs.add,
+    );
+    await logged.start();
+    Future<(int, Map<String, Object?>)> call(String token) async {
+      final request = await client.postUrl(
+        Uri.parse('http://127.0.0.1:18770/${logged.token}/api/detail'),
+      );
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode({'token': token}));
+      final response = await request.close();
+      final text = await utf8.decodeStream(response);
+      return (response.statusCode, jsonDecode(text) as Map<String, Object?>);
+    }
+
+    try {
+      expect((await call('failing')).$1, 503);
+      expect((await call('expired')).$1, 409);
+      await call('failing'); // 同じ失敗の連続は1回だけ記録する
+      final failures = logs.where((l) => l.contains('リモコン操作失敗')).toList();
+      expect(failures, hasLength(2));
+      expect(
+        failures.first,
+        allOf(contains('api/detail'), contains('曲詳細取得に失敗')),
+      );
+      expect(failures.where((l) => l.contains(logged.token)), isEmpty);
+    } finally {
+      await logged.stop();
+    }
   });
 
   test('DAMの処理中は409を返す', () async {

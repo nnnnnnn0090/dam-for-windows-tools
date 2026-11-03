@@ -51,6 +51,17 @@ Future<void> main() async {
           await Future<void>.delayed(const Duration(milliseconds: 400));
         }
         emit(searchResult(id, query));
+      case 'remoteDetail':
+        emit({
+          'type': 'remote-detail-result',
+          'requestId': id,
+          'detail': {
+            'videoId': '1-1',
+            'startLyric': 'la',
+            'originalKey': 0,
+            'playTypes': ['standard'],
+          },
+        });
       case 'remoteState':
         emit({
           'type': 'remote-state-result',

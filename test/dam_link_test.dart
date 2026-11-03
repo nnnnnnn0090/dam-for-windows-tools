@@ -67,6 +67,18 @@ void main() {
     expect(state.key, 2);
   });
 
+  test('曲詳細は1回目から結果を返し、2回目はキャッシュから返す', () async {
+    // 1回目は、取得中の要求の後始末が自分自身の完了を待って止まっていました。
+    final first = await link
+        .detail('t_abc')
+        .timeout(const Duration(seconds: 5));
+    expect(first.playTypes, <RemotePlayType>[RemotePlayType.standard]);
+    final second = await link
+        .detail('t_abc')
+        .timeout(const Duration(seconds: 1));
+    expect(second.videoId, first.videoId);
+  });
+
   test('DAM内で1件ずつの操作は要求順に直列化される', () async {
     final order = <String>[];
     await Future.wait(<Future<void>>[

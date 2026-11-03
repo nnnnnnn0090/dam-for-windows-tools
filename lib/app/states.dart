@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
@@ -41,12 +43,38 @@ class LogState extends ChangeNotifier {
 
   final ListQueue<String> _entries = ListQueue<String>();
   Timer? _pending;
+  IOSink? _file;
 
   List<String> get entries => List<String>.unmodifiable(_entries);
+
+  /// 以後のログを [file] にも書きます（前回分は `.old` として1世代だけ残します）。
+  /// 画面のログは500件で消えるため、後から不具合を調べられるようにします。
+  Future<void> attachFile(File file) async {
+    try {
+      final old = File('${file.path}.old');
+      if (await file.exists()) {
+        if (await old.exists()) await old.delete();
+        await file.rename(old.path);
+      }
+      _file = file.openWrite(encoding: utf8);
+      for (final entry in _entries) {
+        _file!.writeln(entry);
+      }
+    } on FileSystemException catch (error) {
+      add('診断ログをファイルへ書けません: ${error.message}');
+    }
+  }
+
+  Future<void> closeFile() async {
+    final sink = _file;
+    _file = null;
+    await sink?.close().catchError((Object _) {});
+  }
 
   void add(String message) {
     final time = DateTime.now().toIso8601String().substring(11, 23);
     _entries.add('$time $message');
+    _file?.writeln('$time $message');
     while (_entries.length > maximumEntries) {
       _entries.removeFirst();
     }
@@ -60,6 +88,7 @@ class LogState extends ChangeNotifier {
   @override
   void dispose() {
     _pending?.cancel();
+    unawaited(closeFile());
     super.dispose();
   }
 }

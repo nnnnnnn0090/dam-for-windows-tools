@@ -240,7 +240,12 @@ class DamLink implements RemoteBackend {
               }
               return detail;
             })
-            .whenComplete(() => _detailRequests.remove(token));
+            // `=> remove(...)` だと取り除いた Future（この要求自身）を返し、
+            // whenComplete が自分の完了を待って永久に終わらなくなります。
+            // 取り除いた値は呼び出し元が待っているので、ここでは待ちません。
+            .whenComplete(() {
+              unawaited(_detailRequests.remove(token));
+            });
     _detailRequests[token] = request;
     return request;
   }

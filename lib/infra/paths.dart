@@ -36,6 +36,7 @@ class AppPaths {
   String get dataDirectory => p.join(root, AppConfig.dataDirectoryName);
   File get settingsFile => File(p.join(dataDirectory, 'settings.json'));
   File get historyFile => File(p.join(dataDirectory, 'history.json'));
+  String get diagnosticsLogPath => p.join(dataDirectory, 'diagnostics.log');
   Directory get videosDirectory => Directory(p.join(dataDirectory, 'videos'));
   Directory get sessionsDirectory =>
       Directory(p.join(dataDirectory, 'sessions'));
