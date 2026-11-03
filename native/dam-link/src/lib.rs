@@ -3,7 +3,7 @@
 //!
 //! スレッド構成:
 //! - メイン: 標準入力を読み、コマンドを振り分けます。`prepareResult` はその場で返します。
-//! - control: `config`・`reconnect`・`shutdown` を届いた順に1つずつ処理します。
+//! - control: `config`・`localSongs`・`reconnect`・`shutdown` を届いた順に1つずつ処理します。
 //! - monitor: 750msごとにDAMを探索し、未接続なら接続します。
 //! - 要求ごとのスレッド: `remote*` をAgentへ転送し、結果を返します。
 
@@ -30,6 +30,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(750);
 
 enum Control {
     Config(Value),
+    LocalSongs(Value),
     Reconnect,
     Shutdown,
 }
@@ -69,6 +70,7 @@ pub fn run() -> u8 {
                 for request in requests {
                     match request {
                         Control::Config(command) => link.update_config(&command),
+                        Control::LocalSongs(command) => link.update_local_songs(&command),
                         Control::Reconnect => link.reconnect(),
                         Control::Shutdown => {
                             link.shutdown();
@@ -114,6 +116,9 @@ pub fn run() -> u8 {
         match kind.as_str() {
             "config" => {
                 let _ = control.send(Control::Config(command));
+            }
+            "localSongs" => {
+                let _ = control.send(Control::LocalSongs(command));
             }
             "reconnect" => {
                 let _ = control.send(Control::Reconnect);

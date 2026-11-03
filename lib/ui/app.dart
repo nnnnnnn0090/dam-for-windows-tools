@@ -8,6 +8,7 @@ import '../app/app_controller.dart';
 import '../app/states.dart';
 import '../app_config.dart';
 import 'header.dart';
+import 'local_songs_page.dart';
 import 'scoring_page.dart';
 import 'theme.dart';
 import 'video_page.dart';
@@ -114,6 +115,7 @@ class _HomePageState extends State<HomePage> {
                       for (final (index, label) in const <String>[
                         '動画',
                         '採点',
+                        'ローカル曲',
                       ].indexed)
                         _Tab(
                           label: label,
@@ -129,6 +131,7 @@ class _HomePageState extends State<HomePage> {
                     children: <Widget>[
                       VideoPage(controller: widget.controller),
                       ScoringPage(controller: widget.controller),
+                      LocalSongsPage(controller: widget.controller),
                     ],
                   ),
                 ),

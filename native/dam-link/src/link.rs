@@ -36,6 +36,8 @@ pub struct Link {
     protocol: Arc<Protocol>,
     target: TargetConfig,
     config: Mutex<FeatureConfig>,
+    /// アプリから届いたローカル曲の一覧です。接続のたびにAgentへ送ります。
+    local_songs: Mutex<Value>,
     attachment: Mutex<Option<Arc<Attachment>>>,
     /// 接続・切断の手順を1つずつにします。
     sequence: Mutex<()>,
@@ -53,6 +55,7 @@ impl Link {
             protocol,
             target,
             config: Mutex::new(FeatureConfig::default()),
+            local_songs: Mutex::new(json!([])),
             attachment: Mutex::new(None),
             sequence: Mutex::new(()),
             hashes: Mutex::new(HashCache::default()),
@@ -84,6 +87,21 @@ impl Link {
         {
             self.protocol
                 .log(format!("機能設定を反映できません: {error}"));
+        }
+    }
+
+    /// 最新のローカル曲一覧を保持し、接続中なら即時に反映します。
+    pub fn update_local_songs(&self, command: &Value) {
+        let songs = match &command["songs"] {
+            Value::Array(songs) => Value::Array(songs.clone()),
+            _ => json!([]),
+        };
+        *lock(&self.local_songs) = songs.clone();
+        if let Some(attachment) = self.attachment()
+            && let Err(error) = attachment.call("setLocalSongs", json!([songs]), CONFIG_TIMEOUT)
+        {
+            self.protocol
+                .log(format!("ローカル曲を反映できません: {error}"));
         }
     }
 
@@ -229,6 +247,15 @@ impl Link {
             }
             attachment.call("updateConfig", json!([latest.to_json()]), CONFIG_TIMEOUT)?;
             applied = latest;
+        }
+        let mut songs = lock(&self.local_songs).clone();
+        loop {
+            attachment.call("setLocalSongs", json!([songs.clone()]), CONFIG_TIMEOUT)?;
+            let latest = lock(&self.local_songs).clone();
+            if latest == songs {
+                break;
+            }
+            songs = latest;
         }
         attachment.channel.set_active(true);
         Ok(())

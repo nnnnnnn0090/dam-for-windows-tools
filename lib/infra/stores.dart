@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../domain/local_songs.dart';
 import '../domain/settings.dart';
 import '../domain/tracks.dart';
 import '../domain/values.dart';
@@ -22,6 +23,28 @@ class SettingsStore {
   }
 
   Future<void> save(AppSettings settings) => _store.write(settings.toJson());
+}
+
+/// `local_songs.json` の読み書きです。曲番号の順に保存します。
+class LocalSongStore {
+  LocalSongStore(File file)
+    : _store = JsonFileStore(file, maximumBytes: 16 * 1024 * 1024);
+
+  final JsonFileStore _store;
+
+  Future<List<LocalSong>> load() async {
+    final raw = await _store.read();
+    final seen = <String>{};
+    return <LocalSong>[
+      for (final item in raw is List ? raw : const <Object?>[])
+        if (jsonObject(item) case final json?)
+          if (LocalSong.fromJson(json) case final song?)
+            if (seen.add(song.requestNo)) song,
+    ]..sort((a, b) => a.requestNo.compareTo(b.requestNo));
+  }
+
+  Future<void> save(List<LocalSong> songs) =>
+      _store.write(<Object>[for (final song in songs) song.toJson()]);
 }
 
 /// `history.json` の読み書きです。形式はv1と同じ「古い順の配列」です。

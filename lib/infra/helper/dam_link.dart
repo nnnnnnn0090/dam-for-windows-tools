@@ -130,6 +130,7 @@ class DamLink implements RemoteBackend {
 
   HelperProcess? _process;
   Map<String, Object> _config = const <String, Object>{};
+  List<Map<String, Object>> _localSongs = const <Map<String, Object>>[];
   bool _stopping = false;
   Duration _backoff = _initialBackoff;
   Timer? _restartTimer;
@@ -158,6 +159,12 @@ class DamLink implements RemoteBackend {
   void updateConfig(Map<String, Object> config) {
     _config = config;
     _process?.send(<String, Object?>{'type': 'config', ...config});
+  }
+
+  /// ローカル曲の一覧を送ります。未起動なら保持し、次の起動時に送ります。
+  void updateLocalSongs(List<Map<String, Object>> songs) {
+    _localSongs = songs;
+    _process?.send(<String, Object?>{'type': 'localSongs', 'songs': songs});
   }
 
   /// DAMへ再接続します。ヘルパーが止まっていれば起動し直します。
@@ -340,6 +347,7 @@ class DamLink implements RemoteBackend {
     }
     _process = process;
     process.send(<String, Object?>{'type': 'config', ..._config});
+    process.send(<String, Object?>{'type': 'localSongs', 'songs': _localSongs});
     final startedAt = DateTime.now();
     unawaited(
       process.exitCode.then((code) {

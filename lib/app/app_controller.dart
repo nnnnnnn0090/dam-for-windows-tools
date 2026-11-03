@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../app_config.dart';
+import '../domain/local_songs.dart';
+import '../domain/midi_melody.dart';
 import '../domain/settings.dart';
 import '../domain/tracks.dart';
 import '../domain/values.dart';
@@ -50,6 +54,10 @@ class AppController {
     const <String>{},
   );
 
+  /// DAMの配信にない、このPCだけで追加した曲です（曲番号の順）。
+  final ValueNotifier<List<LocalSong>> localSongs =
+      ValueNotifier<List<LocalSong>>(const <LocalSong>[]);
+
   /// 公式動画の書き出しを表示するかです。権利上の理由で通常は隠し、
   /// 「0」キーを10回続けて押したときだけ、その起動中に限り表示します。
   final ValueNotifier<bool> exportUnlocked = ValueNotifier<bool>(false);
@@ -71,6 +79,10 @@ class AppController {
 
   late final SettingsStore _settingsStore = SettingsStore(paths.settingsFile);
   late final HistoryStore _historyStore = HistoryStore(paths.historyFile);
+  late final LocalSongStore _localSongStore = LocalSongStore(
+    paths.localSongsFile,
+  );
+  Future<void> _localSongSave = Future<void>.value();
   late final ManualVideoStore _videoStore = ManualVideoStore(
     paths.videosDirectory,
   );
@@ -112,6 +124,11 @@ class AppController {
       );
       final videos = await _videoStore.load();
       manualVideos.value = videos.keys.toSet();
+      localSongs.value = await _loadOr(
+        _localSongStore.load(),
+        const <LocalSong>[],
+        'ローカル曲',
+      );
 
       final media = MediaServer(
         port: AppConfig.mediaServerPort,
@@ -145,6 +162,8 @@ class AppController {
         onPrepare: _prepareReplacement,
       );
       _link = link;
+      await _writeScoreFiles();
+      link.updateLocalSongs(_localSongsForHelper());
       await link.start(settings.value.toHelperConfig());
 
       final remote = RemoteServer(
@@ -248,6 +267,182 @@ class AppController {
       '（${_megabytes(await stored.length())}・${seconds.toStringAsFixed(1)}秒）',
     );
   }
+
+  // ---- ローカル曲 ----
+
+  /// ローカル曲の動画を選びます。キャンセルなら `null` です。
+  Future<String?> pickLocalSongVideo() =>
+      bridge.pickVideoFile(ManualVideoStore.extensions);
+
+  /// ローカル曲を追加します。動画を取り込み、長さを調べてからDAMへ反映します。
+  Future<LocalSong> addLocalSong({
+    required String title,
+    required String artist,
+    required String titleYomi,
+    required String artistYomi,
+    required File video,
+  }) async {
+    await _ready.future;
+    final requestNo = LocalSong.nextNumber(
+      localSongs.value.map((song) => song.requestNo),
+    );
+    if (requestNo == null) {
+      throw StateError('ローカル曲は${LocalSong.maximumSongs}曲までです');
+    }
+    await _importVideo(requestNo, video);
+    final song = LocalSong(
+      requestNo: requestNo,
+      title: title.trim(),
+      artist: artist.trim(),
+      titleYomi: titleYomi.trim(),
+      artistYomi: artistYomi.trim(),
+      playtimeSeconds: await _playtimeOf(video),
+    );
+    _setLocalSongs(<LocalSong>[...localSongs.value, song]);
+    log.add('[$requestNo] ローカル曲を追加しました: ${song.artist} - ${song.title}');
+    return song;
+  }
+
+  /// 曲名などを変更します。
+  Future<void> updateLocalSong(LocalSong song) async {
+    await _ready.future;
+    _setLocalSongs(<LocalSong>[
+      for (final current in localSongs.value)
+        current.requestNo == song.requestNo ? song : current,
+    ]);
+    log.add('[${song.requestNo}] ローカル曲を変更しました');
+  }
+
+  /// MIDIファイルから、旋律の候補になるトラックを読みます。
+  Future<List<MidiTrack>> readMidiTracks(String path) async {
+    final file = File(path.trim());
+    if (!await file.exists()) throw const MidiFormatException('ファイルが見つかりません');
+    if (await file.length() > 8 * 1024 * 1024) {
+      throw const MidiFormatException('MIDIファイルが大きすぎます');
+    }
+    return parseMidiMelodies(await file.readAsBytes());
+  }
+
+  /// 曲の採点用の旋律を設定します。空なら採点なしに戻します。
+  Future<void> setLocalSongMelody(
+    String requestNo,
+    List<MelodyNote> melody,
+  ) async {
+    await _ready.future;
+    if (melody.length > LocalSong.maximumMelodyNotes) {
+      throw StateError('音符が多すぎます（${LocalSong.maximumMelodyNotes}音まで）');
+    }
+    _setLocalSongs(<LocalSong>[
+      for (final song in localSongs.value)
+        song.requestNo == requestNo ? song.copyWith(melody: melody) : song,
+    ]);
+    log.add(
+      melody.isEmpty
+          ? '[$requestNo] 採点データを外しました'
+          : '[$requestNo] 採点データを設定しました（${melody.length}音）',
+    );
+  }
+
+  /// 動画を入れ替えます。キャンセルなら何もしません。
+  Future<void> replaceLocalSongVideo(String requestNo) async {
+    await _ready.future;
+    final picked = await pickLocalSongVideo();
+    if (picked == null) return;
+    await _importVideo(requestNo, File(picked));
+    final playtime = await _playtimeOf(File(picked));
+    _setLocalSongs(<LocalSong>[
+      for (final song in localSongs.value)
+        song.requestNo == requestNo
+            ? song.copyWith(playtimeSeconds: playtime)
+            : song,
+    ]);
+  }
+
+  /// ローカル曲と、その動画を削除します。
+  Future<void> removeLocalSong(String requestNo) async {
+    await _ready.future;
+    await clearManualVideo(requestNo);
+    _setLocalSongs(<LocalSong>[
+      for (final song in localSongs.value)
+        if (song.requestNo != requestNo) song,
+    ]);
+    log.add('[$requestNo] ローカル曲を削除しました');
+  }
+
+  Future<void> _importVideo(String videoId, File source) async {
+    if (tasks.isRunning(TaskKind.import, videoId)) {
+      throw StateError('この曲の動画を取り込み中です');
+    }
+    await _media?.forget(videoId);
+    tasks.update(TaskKind.import, videoId, fraction: 0);
+    final File stored;
+    try {
+      stored = await _videoStore.import(
+        videoId,
+        source,
+        onProgress: (copied, total) => tasks.update(
+          TaskKind.import,
+          videoId,
+          fraction: total > 0 ? copied / total : null,
+          detail: '${_megabytes(copied)} / ${_megabytes(total)}',
+        ),
+      );
+    } finally {
+      tasks.end(TaskKind.import, videoId);
+    }
+    await _media?.setManualSource(videoId, stored);
+    manualVideos.value = <String>{...manualVideos.value, videoId};
+  }
+
+  Future<int> _playtimeOf(File video) async {
+    final duration = await probeDuration(paths.ffmpegExecutable, video.path);
+    return duration == null ? 0 : (duration.inMilliseconds / 1000).round();
+  }
+
+  void _setLocalSongs(List<LocalSong> songs) {
+    final sorted = <LocalSong>[...songs]
+      ..sort((a, b) => a.requestNo.compareTo(b.requestNo));
+    localSongs.value = List<LocalSong>.unmodifiable(sorted);
+    // 採点用の旋律のファイルを先に更新してから、DAMへ一覧を送ります。
+    _localSongSave = _localSongSave
+        .then((_) => _writeScoreFiles())
+        .then((_) => _link?.updateLocalSongs(_localSongsForHelper()))
+        .then((_) => _localSongStore.save(sorted))
+        .catchError((Object error) => log.add('ローカル曲を保存できません: $error'));
+  }
+
+  File _scoreFile(String requestNo) =>
+      File(p.join(paths.localScoresDirectory.path, '$requestNo.json'));
+
+  /// 採点用の旋律を曲ごとのファイルへ書きます（内容が同じなら書き直しません）。
+  /// 無くなった曲のファイルは消します。
+  Future<void> _writeScoreFiles() async {
+    try {
+      final directory = paths.localScoresDirectory;
+      await directory.create(recursive: true);
+      final keep = <String>{};
+      for (final song in localSongs.value) {
+        if (!song.hasScore) continue;
+        final file = _scoreFile(song.requestNo);
+        keep.add(p.basename(file.path));
+        final text = jsonEncode(song.melodyFlat);
+        if (await file.exists() && await file.readAsString() == text) continue;
+        await file.writeAsString(text);
+      }
+      await for (final entity in directory.list(followLinks: false)) {
+        if (entity is File && !keep.contains(p.basename(entity.path))) {
+          await entity.delete().catchError((Object _) => entity);
+        }
+      }
+    } on FileSystemException catch (error) {
+      log.add('採点データのファイルを書けません: ${error.message}');
+    }
+  }
+
+  List<Map<String, Object>> _localSongsForHelper() => <Map<String, Object>>[
+    for (final song in localSongs.value)
+      song.toHelperJson(scorePath: _scoreFile(song.requestNo).path),
+  ];
 
   /// 変換の進み具合を作業一覧へ反映します（`null` は変換の終了）。
   void _onTranscodeProgress(String videoId, MediaProgress? progress) {
@@ -417,6 +612,7 @@ class AppController {
     await step('公式動画の書き出し', _exporter.close);
     await step('ローカル配信', () => _media?.stop());
     await step('再生履歴の保存', () => _historySave);
+    await step('ローカル曲の保存', () => _localSongSave);
     await step('一時データ', paths.disposeSession);
     await log.closeFile();
     _updates.close();

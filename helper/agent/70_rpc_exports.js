@@ -15,10 +15,15 @@ rpc.exports = {
     installDamScoringOverlay();
     installScoringHooks();
     installRemoteControlHooks();
+    installLocalSongHooks();
     hooksInstalled = true;
     initialized = true;
     emitLog('検証済み再生経路・曲情報・採点表現監視を有効化しました');
     return true;
+  },
+  /** ローカル曲の一覧を差し替えます。DAMの検索・曲情報・配信URLの応答へ反映されます。 */
+  setLocalSongs(list) {
+    return setLocalSongList(list);
   },
   /** 初期化済みAgentへ機能設定を反映します。 */
   updateConfig(next) {
