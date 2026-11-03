@@ -103,6 +103,34 @@ void main() {
     }
   });
 
+  test('呼び出し元がタイムアウトした、まだ送っていない要求は取り消して送らない', () async {
+    final short = await startLink(
+      searchTimeout: const Duration(milliseconds: 700),
+    );
+    try {
+      // 'late' が枠を約1秒占有している間に積んだ 'dropped' は、
+      // 呼び出し元の 700ms のタイムアウトで取り消され、ヘルパーへ送られません。
+      final outcomes = await Future.wait(<Future<String>>[
+        for (final query in <String>['late', 'dropped'])
+          short
+              .search(query, RemoteSearchMode.keyword)
+              .then((_) => 'ok', onError: (Object _) => 'failed'),
+      ]);
+      expect(outcomes, <String>['failed', 'failed']);
+      final songs = await short.search('next', RemoteSearchMode.keyword);
+      expect(songs.single.title, 'next');
+      final received = events
+          .whereType<LinkLog>()
+          .map((e) => e.message)
+          .where((m) => m.startsWith('received:'))
+          .toList();
+      expect(received, isNot(contains('received:dropped')));
+      expect(received, containsAll(<String>['received:late', 'received:next']));
+    } finally {
+      await short.stop();
+    }
+  });
+
   test('終了は shutdown を送って待ち、以後の要求は未接続で失敗する', () async {
     final watch = Stopwatch()..start();
     await link.stop();

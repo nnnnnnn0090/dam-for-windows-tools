@@ -183,6 +183,57 @@ void main() {
     expect(body['error'], contains('処理中'));
   });
 
+  test('応答を受け取らない端末が同時処理数を埋めても、期限で接続を切って回復する', () async {
+    final logs = <String>[];
+    final stalled = RemoteServer(
+      port: 18769,
+      backend: FakeBackend(),
+      // 受信側の窓が埋まるよう、大きなページを返します。
+      loadPage: () async => '<html>${'x' * (4 * 1024 * 1024)}</html>',
+      onLog: logs.add,
+      requestDeadline: const Duration(seconds: 2),
+    );
+    await stalled.start();
+    final sockets = <Socket>[];
+    Future<int> probe() async {
+      final response = await (await client.getUrl(
+        Uri.parse('http://127.0.0.1:18769/wrong/'),
+      )).close();
+      await response.drain<void>();
+      return response.statusCode;
+    }
+
+    try {
+      for (var i = 0; i < RemoteServer.maximumConcurrentRequests; i++) {
+        // ページを要求したまま、応答を一切読まない端末
+        final socket = await Socket.connect('127.0.0.1', 18769);
+        socket.write(
+          'GET /${stalled.token}/ HTTP/1.1\r\nHost: 127.0.0.1:18769\r\n\r\n',
+        );
+        await socket.flush();
+        sockets.add(socket);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(await probe(), 503);
+      expect(logs, contains(contains('同時要求が上限')));
+
+      await Future<void>.delayed(const Duration(seconds: 3));
+      expect(await probe(), 404, reason: '期限を過ぎた要求が枠を返していない');
+      expect(logs, contains(allOf(contains('接続を切りました'), contains('ページの送信'))));
+      // 処理中の要求の記録には、URLのトークンを含めない
+      final traces = logs.where(
+        (l) => l.contains('同時要求') || l.contains('接続を切りました'),
+      );
+      expect(traces, isNotEmpty);
+      expect(traces.where((l) => l.contains(stalled.token)), isEmpty);
+    } finally {
+      for (final socket in sockets) {
+        socket.destroy();
+      }
+      await stalled.stop();
+    }
+  });
+
   test('プライベートアドレス判定', () {
     expect(
       RemoteServer.isPrivateAddress(InternetAddress('192.168.1.2')),

@@ -41,7 +41,12 @@ class RemoteServer {
     required this.backend,
     required this.loadPage,
     required this.onLog,
+    this.requestDeadline = const Duration(seconds: 30),
   });
+
+  /// 1件の要求にかける時間の上限です。DAMを待つ最長（22秒）より長くします。
+  /// 過ぎた要求は接続を切って枠を返し、同時処理数の上限が埋まったままにならないようにします。
+  final Duration requestDeadline;
 
   static const int maximumConcurrentRequests = 8;
   static const int maximumRequestsPerMinute = 180;
@@ -57,7 +62,8 @@ class RemoteServer {
   final Map<String, List<DateTime>> _requestTimes = <String, List<DateTime>>{};
   Set<String> _localAddresses = <String>{};
   String? _preferredAddress;
-  int _active = 0;
+  final Set<_Trace> _inFlight = <_Trace>{};
+  DateTime? _lastBusyLog;
   HttpServer? _server;
   Timer? _addressTimer;
 
@@ -184,22 +190,71 @@ class RemoteServer {
         _error('操作が多すぎます。少し待ってから再試行してください'),
       );
     }
-    if (_active >= maximumConcurrentRequests) {
-      return _send(response, HttpStatus.serviceUnavailable, _error('混み合っています'));
+    if (_inFlight.length >= maximumConcurrentRequests) {
+      _logBusy();
+      return _send(
+        response,
+        HttpStatus.serviceUnavailable,
+        _error('混み合っています。少し待ってから再読み込みしてください'),
+      );
     }
-    _active++;
+    final trace = _Trace(request);
+    _inFlight.add(trace);
+    // 応答を受け取らない端末（画面消灯・電波切れなど）への送信待ちで止まらないよう、
+    // 期限が来たら接続ごと切ります。
+    response.deadline = requestDeadline;
     try {
-      await _route(request);
+      // どこで止まっても、期限を少し過ぎたら待つのをやめて枠を返します。
+      await _route(
+        request,
+        trace,
+      ).timeout(requestDeadline + const Duration(seconds: 1), onTimeout: () {});
+      if (_pastDeadline(trace)) _logDeadline(trace);
     } on Object catch (error) {
+      // 期限で接続を切った後のエラーです。応答はもう送れません。
+      if (_pastDeadline(trace)) {
+        _logDeadline(trace);
+        return;
+      }
       final (status, message) = _describe(error);
       if (status >= 500 && error is! RemoteFailure) onLog('リモコンAPI失敗: $error');
-      await _send(response, status, _error(message));
+      trace.stage = 'エラー応答の送信';
+      await _send(
+        response,
+        status,
+        _error(message),
+      ).timeout(requestDeadline, onTimeout: () {});
     } finally {
-      _active--;
+      _inFlight.remove(trace);
     }
   }
 
-  Future<void> _route(HttpRequest request) async {
+  /// 期限を過ぎていれば、Dartの [HttpResponse.deadline] がすでに接続を切っています。
+  bool _pastDeadline(_Trace trace) =>
+      DateTime.now().difference(trace.started) >= requestDeadline;
+
+  void _logDeadline(_Trace trace) => onLog(
+    'リモコンの要求が${requestDeadline.inSeconds}秒以内に終わらなかったため、接続を切りました'
+    '（${trace.describe()}）',
+  );
+
+  /// 同時処理数が上限に達したことを、処理中の要求の内訳とともに記録します（30秒に1回まで）。
+  void _logBusy() {
+    final now = DateTime.now();
+    final last = _lastBusyLog;
+    if (last != null && now.difference(last) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastBusyLog = now;
+    final oldest = _inFlight.toList()
+      ..sort((a, b) => a.started.compareTo(b.started));
+    onLog(
+      'リモコンの同時要求が上限（$maximumConcurrentRequests件）に達しています: '
+      '${oldest.take(4).map((t) => t.describe()).join(' / ')}',
+    );
+  }
+
+  Future<void> _route(HttpRequest request, _Trace trace) async {
     if (!_isOwnHost(request.requestedUri.host)) {
       throw const _Problem(HttpStatus.misdirectedRequest, '不明なホストです');
     }
@@ -211,6 +266,7 @@ class RemoteServer {
       if (request.method != 'GET') {
         throw const _Problem(HttpStatus.methodNotAllowed, '許可されていない操作です');
       }
+      trace.stage = 'ページの送信';
       return _sendPage(request.response);
     }
     if (segments.length != 3 || segments[1] != 'api') {
@@ -227,8 +283,11 @@ class RemoteServer {
     if (request.headers.contentType?.mimeType != 'application/json') {
       throw const _Problem(HttpStatus.unsupportedMediaType, 'JSONで送信してください');
     }
+    trace.stage = '本文の受信';
     final body = await _readJson(request);
+    trace.stage = 'DAMの応答待ち';
     final result = await _dispatch(segments[2], body);
+    trace.stage = '応答の送信';
     await _send(request.response, HttpStatus.ok, result);
   }
 
@@ -451,6 +510,32 @@ class RemoteServer {
       // 送信済み・切断済みの場合は何もしません。
     }
   }
+}
+
+/// 処理中の要求1件分です。止まったときに、どこで止まったかを記録に残すために使います。
+class _Trace {
+  _Trace(HttpRequest request)
+    : method = request.method,
+      target = _targetOf(request.uri.pathSegments);
+
+  final String method;
+  final String target;
+  final DateTime started = DateTime.now();
+  String stage = '受付';
+
+  /// URLのトークンは記録に残さず、APIの種類だけを返します。
+  static String _targetOf(List<String> segments) {
+    if (segments.length == 3 &&
+        segments[1] == 'api' &&
+        RegExp(r'^[a-z-]{1,20}$').hasMatch(segments[2])) {
+      return 'api/${segments[2]}';
+    }
+    if (segments.length <= 2) return 'ページ';
+    return '不明';
+  }
+
+  String describe() =>
+      '$method $target・$stage・${DateTime.now().difference(started).inSeconds}秒';
 }
 
 class _Problem implements Exception {

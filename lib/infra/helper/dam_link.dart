@@ -422,6 +422,8 @@ class DamLink implements RemoteBackend {
   ///
   /// 呼び出し元へのタイムアウト後も、結果イベントが届くまで（最大60秒）枠を保持し、
   /// DAMの中で前の処理が続いているうちに次の要求を送らないようにします。
+  /// まだ送っていない要求は、呼び出し元がタイムアウトした時点で取り消します
+  /// （誰も待っていない要求を後から送り、DAMの混雑を長引かせないため）。
   Future<T> _serial<T>(
     String type,
     Map<String, Object> fields,
@@ -435,6 +437,7 @@ class DamLink implements RemoteBackend {
         .timeout(
           timeout,
           onTimeout: () {
+            _operations.remove(operation);
             throw const RemoteFailure(
               RemoteFailureKind.timeout,
               'DAMの応答がタイムアウトしました',

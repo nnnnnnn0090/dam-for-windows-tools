@@ -26,6 +26,8 @@ Future<void> main() async {
         emit({'type': 'status', 'state': 'attached', 'detail': 'ok'});
       case 'remoteSearch':
         final query = command['query'];
+        // 試験で「どの要求がヘルパーまで届いたか」を確かめるための記録です。
+        emit({'type': 'log', 'message': 'received:$query'});
         if (query == 'crash') exit(3);
         if (query == 'huge') stdout.writeln('x' * (5 * 1024 * 1024));
         if (query == 'busy' || searching) {

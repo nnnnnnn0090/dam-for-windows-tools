@@ -48,17 +48,34 @@ let selectedQueueToken = '';
 
 // ---- 共通 ----
 
+/** 応答のないまま待ち続けないための上限（サーバー側の期限 30 秒より少し短く）。 */
+const API_TIMEOUT_MS = 25000;
+
 /** 同一OriginのPOST APIを呼び、失敗応答を利用者向けの例外にします。 */
 async function api(path, body = {}) {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  let data = {};
-  try { data = await response.json(); } catch (_) { /* 本文なし */ }
-  if (!response.ok) throw new Error(data.error || '通信に失敗しました');
-  return data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    let response;
+    try {
+      response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw new Error(error.name === 'AbortError'
+        ? '応答がありません。電波の状態を確認してください'
+        : '通信に失敗しました');
+    }
+    let data = {};
+    try { data = await response.json(); } catch (_) { /* 本文なし・中断 */ }
+    if (!response.ok) throw new Error(data.error || '通信に失敗しました');
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** textContent だけで文字を入れた要素を作ります。 */
@@ -126,18 +143,23 @@ function renderState(next) {
 function refreshState(silent = true) {
   if (stateRequest) return stateRequest;
   stateRequest = api('api/state')
-    .then(renderState)
+    .then((next) => {
+      renderState(next);
+      return true;
+    })
     .catch((error) => {
       renderState({ ...state, connected: false, confirmation: null });
       if (!silent) toast(error.message);
+      return false;
     })
     .finally(() => { stateRequest = null; });
   return stateRequest;
 }
 
+/** 失敗している間は間隔を空け、混み合ったサーバーへ要求を重ねないようにします。 */
 async function pollState() {
-  if (!busy) await refreshState(true);
-  setTimeout(pollState, 1000);
+  const ok = busy ? true : await refreshState(true);
+  setTimeout(pollState, ok ? 1000 : 4000);
 }
 
 /** 演奏操作を送り、結果の状態を反映します。 */
@@ -545,14 +567,21 @@ function renderQueue() {
   $('queueRemove').disabled = !selected;
 }
 
-async function refreshQueue(silent = false) {
-  try {
-    const data = await api('api/queue');
-    queueRows = Array.isArray(data.rows) ? data.rows : [];
-    renderQueue();
-  } catch (error) {
-    if (!silent) toast(error.message);
-  }
+let queueRequest = null;
+
+/** 予約一覧の取得を1本にまとめ、応答待ちの間は要求を重ねません。 */
+function refreshQueue(silent = false) {
+  if (queueRequest) return queueRequest;
+  queueRequest = api('api/queue')
+    .then((data) => {
+      queueRows = Array.isArray(data.rows) ? data.rows : [];
+      renderQueue();
+    })
+    .catch((error) => {
+      if (!silent) toast(error.message);
+    })
+    .finally(() => { queueRequest = null; });
+  return queueRequest;
 }
 
 async function queueAction(action) {
